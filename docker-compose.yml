@@ -1,0 +1,62 @@
+services:
+  traefik:
+    image: traefik:v3
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - public
+
+  tasks-api:
+    image: ghcr.io/js-beaulieu/tasks:latest
+    restart: unless-stopped
+    networks:
+      - public
+      - internal
+    volumes:
+      - tasks-db:/data
+    environment:
+      - DB_PATH=/data/tasks.db
+      - PORT=${TASKS_PORT:-8080}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ZITADEL_ISSUER=${ZITADEL_ISSUER}
+      - ZITADEL_AUTH_URL=${ZITADEL_AUTH_URL}
+      - ZITADEL_TOKEN_URL=${ZITADEL_TOKEN_URL}
+      - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
+    labels:
+      - "traefik.enable=true"
+      # Protected routes — jwt-auth middleware validates Bearer token and injects identity headers
+      - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`)"
+      - "traefik.http.routers.tasks.entrypoints=websecure"
+      - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks.middlewares=jwt-auth@file"
+      # Public routes (health + well-known) — higher priority bypasses jwt-auth
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/health`,`/.well-known`)"
+      - "traefik.http.routers.tasks-public.entrypoints=websecure"
+      - "traefik.http.routers.tasks-public.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks-public.priority=10"
+
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_CLEANUP=true
+
+networks:
+  public:
+  internal:
+    internal: true  # no outbound internet; service-to-service only
+
+volumes:
+  letsencrypt:
+  tasks-db:

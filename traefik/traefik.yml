@@ -1,0 +1,31 @@
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: folkrav@gmail.com
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+
+experimental:
+  plugins:
+    jwt:
+      moduleName: github.com/team-carepay/traefik-jwt-plugin
+      version: "v0.6.0"
+
+providers:
+  docker:
+    exposedByDefault: false
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true

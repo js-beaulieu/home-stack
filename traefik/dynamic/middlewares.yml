@@ -1,0 +1,11 @@
+# Replace YOUR-INSTANCE with your Zitadel Cloud instance hostname (e.g. abc123.zitadel.cloud)
+http:
+  middlewares:
+    jwt-auth:
+      plugin:
+        jwt:
+          jwksUrl: "https://YOUR-INSTANCE.zitadel.cloud/oauth/v2/keys"
+          headerMap:
+            sub: X-User-ID
+            email: X-User-Email
+            name: X-User-Name

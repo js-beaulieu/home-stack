@@ -1,0 +1,15 @@
+# Environment — keep secrets off disk
+.env
+.env.*
+!.env.template
+
+# Claude Code — local-only settings
+.claude/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Temporary
+tmp/

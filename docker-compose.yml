@@ -2,6 +2,9 @@ services:
   traefik:
     image: traefik:v3
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "80:80"
       - "443:443"
@@ -10,12 +13,43 @@ services:
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL}
+      - DOMAIN=${DOMAIN}
+      - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
     networks:
       - public
+
+  auth-api:
+    image: ghcr.io/js-beaulieu/auth-api:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    networks:
+      - public
+    environment:
+      - PORT=${AUTH_PORT:-8080}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ZITADEL_ISSUER=${ZITADEL_ISSUER}
+      - ZITADEL_AUTH_URL=${ZITADEL_AUTH_URL}
+      - ZITADEL_TOKEN_URL=${ZITADEL_TOKEN_URL}
+      - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
+      - ZITADEL_MCP_CLIENT_ID=${ZITADEL_MCP_CLIENT_ID}
+      - PUBLIC_URL=https://auth.api.${DOMAIN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-api.rule=Host(`auth.api.${DOMAIN}`)"
+      - "traefik.http.routers.auth-api.entrypoints=websecure"
+      - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
 
   tasks-api:
     image: ghcr.io/js-beaulieu/tasks:latest
     restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
     networks:
       - public
       - internal
@@ -26,19 +60,22 @@ services:
       - PORT=${TASKS_PORT:-8080}
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - ZITADEL_ISSUER=${ZITADEL_ISSUER}
-      - ZITADEL_AUTH_URL=${ZITADEL_AUTH_URL}
-      - ZITADEL_TOKEN_URL=${ZITADEL_TOKEN_URL}
-      - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
+      - LOG_DETAILED=${LOG_DETAILED:-false}
     labels:
       - "traefik.enable=true"
       # Protected routes — jwt-auth middleware validates Bearer token and injects identity headers
-      - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`)"
+      - "traefik.http.routers.tasks.rule=Host(`tasks.api.${DOMAIN}`)"
       - "traefik.http.routers.tasks.entrypoints=websecure"
       - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
       - "traefik.http.routers.tasks.middlewares=jwt-auth@file"
-      # Public routes (health + well-known) — higher priority bypasses jwt-auth
-      - "traefik.http.routers.tasks-public.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/health`,`/.well-known`)"
+      # OAuth2 discovery — redirects to auth-api, no auth, highest priority
+      - "traefik.http.routers.tasks-wellknown.rule=Host(`tasks.api.${DOMAIN}`) && Path(`/.well-known/oauth-authorization-server`)"
+      - "traefik.http.routers.tasks-wellknown.entrypoints=websecure"
+      - "traefik.http.routers.tasks-wellknown.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks-wellknown.middlewares=well-known-redirect@file"
+      - "traefik.http.routers.tasks-wellknown.priority=20"
+      # Health check — public, no auth
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.api.${DOMAIN}`) && PathPrefix(`/health`)"
       - "traefik.http.routers.tasks-public.entrypoints=websecure"
       - "traefik.http.routers.tasks-public.tls.certresolver=letsencrypt"
       - "traefik.http.routers.tasks-public.priority=10"

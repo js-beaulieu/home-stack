@@ -12,7 +12,7 @@ entryPoints:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: folkrav@gmail.com
+      email: ${ACME_EMAIL}
       storage: /letsencrypt/acme.json
       httpChallenge:
         entryPoint: web

@@ -8,8 +8,3 @@ http:
             sub: X-User-ID
             email: X-User-Email
             name: X-User-Name
-    well-known-redirect:
-      redirectRegex:
-        regex: ".*"
-        replacement: 'https://auth.api.{{ env "DOMAIN" }}/.well-known/oauth-authorization-server'
-        permanent: false

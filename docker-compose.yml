@@ -14,9 +14,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
     environment:
-      - ACME_EMAIL=${ACME_EMAIL}
       - DOMAIN=${DOMAIN}
       - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
+      - TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL=${ACME_EMAIL}
     networks:
       - public
 
@@ -40,9 +40,9 @@ services:
       - PUBLIC_URL=https://auth.api.${DOMAIN}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth-api.rule=Host(`auth.api.${DOMAIN}`)"
-      - "traefik.http.routers.auth-api.entrypoints=websecure"
-      - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth.rule=Host(`auth.api.${DOMAIN}`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
 
   tasks-api:
     image: ghcr.io/js-beaulieu/tasks-api:latest
@@ -68,12 +68,6 @@ services:
       - "traefik.http.routers.tasks.entrypoints=websecure"
       - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
       - "traefik.http.routers.tasks.middlewares=jwt-auth@file"
-      # OAuth2 discovery — redirects to auth-api, no auth, highest priority
-      - "traefik.http.routers.tasks-wellknown.rule=Host(`tasks.api.${DOMAIN}`) && Path(`/.well-known/oauth-authorization-server`)"
-      - "traefik.http.routers.tasks-wellknown.entrypoints=websecure"
-      - "traefik.http.routers.tasks-wellknown.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tasks-wellknown.middlewares=well-known-redirect@file"
-      - "traefik.http.routers.tasks-wellknown.priority=20"
       # Health check — public, no auth
       - "traefik.http.routers.tasks-public.rule=Host(`tasks.api.${DOMAIN}`) && PathPrefix(`/health`)"
       - "traefik.http.routers.tasks-public.entrypoints=websecure"

@@ -25,15 +25,14 @@ Auth is handled entirely at the gateway. Individual services trust forwarded ide
 
 ## Auth flow (MCP client connecting for the first time)
 
-1. Client hits `tasks.api.DOMAIN/.well-known/oauth-authorization-server`
-2. Traefik `well-known-redirect` middleware 302s to `auth.api.DOMAIN/.well-known/oauth-authorization-server`
-3. auth-api returns discovery doc with Zitadel endpoints + `registration_endpoint: https://auth.api.DOMAIN/register`
-4. Client POSTs to `auth.api.DOMAIN/register` with a valid Zitadel Bearer JWT — auth-api calls Zitadel Management API to register redirect URI, returns `mcp` client ID
-5. Client redirects user to Zitadel's `authorization_endpoint` with PKCE
-6. User authenticates in Zitadel, code returned to client
-7. Client exchanges code at Zitadel's `token_endpoint` → JWT
-8. Client calls `tasks.api.DOMAIN/...` with `Authorization: Bearer <jwt>`
-9. Traefik validates JWT via JWKS, injects identity headers, forwards request
+1. Client hits `auth.api.DOMAIN/.well-known/oauth-authorization-server`
+2. auth-api returns discovery doc with Zitadel endpoints + `registration_endpoint: https://auth.api.DOMAIN/register`
+3. Client POSTs to `auth.api.DOMAIN/register` with a valid Zitadel Bearer JWT — auth-api calls Zitadel Management API to register redirect URI, returns `mcp` client ID
+4. Client redirects user to Zitadel's `authorization_endpoint` with PKCE
+5. User authenticates in Zitadel, code returned to client
+6. Client exchanges code at Zitadel's `token_endpoint` → JWT
+7. Client calls `tasks.api.DOMAIN/...` with `Authorization: Bearer <jwt>`
+8. Traefik validates JWT via JWKS, injects identity headers, forwards request
 
 ## Domain convention
 
@@ -51,7 +50,6 @@ Two DNS wildcard records are needed: `*.DOMAIN` and `*.api.DOMAIN`.
 | Type | Traefik | Middleware |
 |---|---|---|
 | Public-facing API | yes | `jwt-auth` |
-| `/.well-known/oauth-authorization-server` | yes | `well-known-redirect` → auth-api (priority 20) |
 | Health | yes | none (priority 10) |
 | Internal service-to-service | no | Docker `internal` network |
 | Personal admin | yes | IP allowlist |
@@ -60,7 +58,7 @@ Two DNS wildcard records are needed: `*.DOMAIN` and `*.api.DOMAIN`.
 
 1. Add a `services:` block in `docker-compose.yml`
 2. Attach to `public` network (and `internal` if it calls other services)
-3. Add Traefik labels following the existing pattern (protected router + well-known router + health router)
+3. Add Traefik labels following the existing pattern (protected router + health router)
 4. Environment variables go in the host's `/etc/environment` — no `.env` files
 
 ## Deployment
@@ -95,7 +93,7 @@ home-stack/
   traefik/
     traefik.yml          # static config: entrypoints, plugin declaration
     dynamic/
-      middlewares.yml    # jwt-auth + well-known-redirect middleware definitions
+      middlewares.yml    # jwt-auth middleware definition
   .github/
     workflows/
       deploy.yml         # SSH deploy on push to main

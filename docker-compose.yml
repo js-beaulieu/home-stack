@@ -45,7 +45,7 @@ services:
       - "traefik.http.routers.auth-api.tls.certresolver=letsencrypt"
 
   tasks-api:
-    image: ghcr.io/js-beaulieu/tasks:latest
+    image: ghcr.io/js-beaulieu/tasks-api:latest
     restart: unless-stopped
     env_file:
       - path: .env

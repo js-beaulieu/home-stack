@@ -1,0 +1,14 @@
+- name: Restart ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+
+- name: Reboot for hostname changes
+  ansible.builtin.reboot:
+    msg: "Rebooting to apply hostname and cloud-init host settings"
+    reboot_timeout: 600

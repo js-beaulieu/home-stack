@@ -1,0 +1,17 @@
+[Unit]
+Description=home-stack Docker Compose
+After=docker.service
+Requires=docker.service
+
+[Service]
+User={{ deploy_user }}
+Group={{ deploy_user }}
+SupplementaryGroups=docker
+WorkingDirectory=/home/{{ deploy_user }}/home-stack
+EnvironmentFile=/etc/home-stack.env
+ExecStart=/usr/bin/docker compose up --remove-orphans
+ExecStop=/usr/bin/docker compose down
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

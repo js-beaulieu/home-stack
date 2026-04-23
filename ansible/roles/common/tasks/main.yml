@@ -1,0 +1,126 @@
+- name: Upgrade installed packages
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Preserve hostname through cloud-init
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/cloud.cfg
+    regexp: "^preserve_hostname:"
+    line: "preserve_hostname: true"
+    create: false
+  notify: Reboot for hostname changes
+
+- name: Allow cloud-init to manage /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/cloud.cfg
+    regexp: "^manage_etc_hosts:"
+    line: "manage_etc_hosts: true"
+    create: false
+  notify: Reboot for hostname changes
+
+- name: Set cloud-init FQDN
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/cloud.cfg
+    regexp: "^fqdn:"
+    line: "fqdn: {{ hostname }}"
+    create: false
+  notify: Reboot for hostname changes
+
+- name: Set runtime hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+  notify: Reboot for hostname changes
+
+- name: Persist hostname in /etc/hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hostname
+    regexp: ".*"
+    line: "{{ hostname }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reboot for hostname changes
+
+- name: Install host security packages
+  ansible.builtin.apt:
+    name:
+      - fail2ban
+      - ufw
+      - unattended-upgrades
+    state: present
+
+- name: Allow SSH through UFW
+  ansible.builtin.command: ufw allow 22/tcp
+  register: common_ufw_allow_ssh
+  changed_when: "'Rules updated' in common_ufw_allow_ssh.stdout"
+
+- name: Allow HTTP through UFW
+  ansible.builtin.command: ufw allow 80/tcp
+  register: common_ufw_allow_http
+  changed_when: "'Rules updated' in common_ufw_allow_http.stdout"
+
+- name: Allow HTTPS through UFW
+  ansible.builtin.command: ufw allow 443/tcp
+  register: common_ufw_allow_https
+  changed_when: "'Rules updated' in common_ufw_allow_https.stdout"
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command: ufw default deny incoming
+  register: common_ufw_default_incoming
+  changed_when: "'Default incoming policy changed' in common_ufw_default_incoming.stdout"
+
+- name: Set UFW default outgoing policy
+  ansible.builtin.command: ufw default allow outgoing
+  register: common_ufw_default_outgoing
+  changed_when: "'Default outgoing policy changed' in common_ufw_default_outgoing.stdout"
+
+- name: Enable UFW
+  ansible.builtin.command: ufw status
+  register: common_ufw_status
+  changed_when: false
+
+- name: Enable UFW when inactive
+  ansible.builtin.command: ufw --force enable
+  when: "'Status: inactive' in common_ufw_status.stdout"
+  changed_when: true
+
+- name: Configure fail2ban SSH jail
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      maxretry = 3
+      findtime = 300
+      bantime = 1800
+  notify: Restart fail2ban
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Disable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication\\s+"
+    line: "PasswordAuthentication no"
+    validate: "sshd -t -f %s"
+  notify: Restart ssh
+
+- name: Ensure fail2ban is enabled and running
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started

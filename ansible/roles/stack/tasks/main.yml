@@ -1,0 +1,43 @@
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Clone or update home-stack repository
+  ansible.builtin.git:
+    repo: "{{ stack_repo_url }}"
+    dest: "/home/{{ deploy_user }}/home-stack"
+    version: main
+    update: false
+  become: true
+  become_user: "{{ deploy_user }}"
+  notify: Restart home-stack
+
+- name: Render home-stack environment file
+  ansible.builtin.template:
+    src: environment.j2
+    dest: /etc/home-stack.env
+    owner: root
+    group: "{{ deploy_user }}"
+    mode: "0640"
+  notify: Restart home-stack
+
+- name: Install home-stack systemd unit
+  ansible.builtin.template:
+    src: home-stack.service.j2
+    dest: /etc/systemd/system/home-stack.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart home-stack
+
+- name: Enable and start home-stack
+  ansible.builtin.systemd:
+    name: home-stack
+    enabled: true
+    state: started
+    daemon_reload: true

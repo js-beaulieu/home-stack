@@ -1,0 +1,37 @@
+name: Provision VPS
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - 'ansible/**'
+      - 'docker-compose.yml'
+      - 'traefik/**'
+  workflow_dispatch:
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate inventory
+        run: |
+          cat > ansible/inventory.yml <<EOF
+          all:
+            hosts:
+              vps:
+                ansible_host: ${{ secrets.VPS_HOST }}
+                ansible_user: debian
+                ansible_become: true
+          EOF
+
+      - name: Run playbook
+        uses: arillso/action.playbook@1.2.0
+        with:
+          playbook: ansible/playbook.yml
+          inventory: ansible/inventory.yml
+          private_key: ${{ secrets.VPS_SSH_KEY }}
+          vault_password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"

@@ -1,31 +1,22 @@
 name: Deploy stack
 
-on:
+"on":
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Copy stack files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml,traefik/"
-          target: "~/home-stack"
-
-      - name: Deploy
+      - name: Deploy home-stack
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: deploy
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd ~/home-stack
-            docker compose pull
+            cd /home/deploy/home-stack
+            git pull --ff-only
             docker compose up -d

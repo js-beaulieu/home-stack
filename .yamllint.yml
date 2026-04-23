@@ -1,0 +1,21 @@
+extends: default
+
+ignore: |
+  .venv/
+  ansible/inventory.yml
+  docker-compose.override.yml
+
+rules:
+  braces:
+    max-spaces-inside: 1
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  document-start: disable
+  line-length:
+    max: 160
+  octal-values:
+    forbid-explicit-octal: true
+    forbid-implicit-octal: true
+  truthy:
+    allowed-values: ["true", "false"]

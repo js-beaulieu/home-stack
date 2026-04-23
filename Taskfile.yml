@@ -1,0 +1,58 @@
+version: "3"
+
+vars:
+  ANSIBLE_DIR: ansible
+  YAML_FILES: >-
+    .github/workflows
+    ansible
+    docker-compose.yml
+    traefik
+    Taskfile.yml
+    .yamllint.yml
+
+env:
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+
+tasks:
+  check:
+    desc: format + lint + validate (pre-commit sanity check)
+    deps:
+      - format
+      - lint
+      - validate
+
+  deps:
+    desc: Install Python tooling for Ansible and YAML checks
+    cmds:
+      - uv sync --frozen
+
+  format:
+    desc: Check YAML formatting
+    cmds:
+      - uv run --frozen yamllint {{.YAML_FILES}}
+
+  lint:
+    desc: Run Ansible and YAML lint checks
+    cmds:
+      - uv run --frozen yamllint {{.YAML_FILES}}
+      - uv run --frozen ansible-lint {{.ANSIBLE_DIR}}/playbook.yml
+
+  validate:
+    desc: Validate Ansible syntax and Docker Compose config
+    deps:
+      - ansible:syntax
+      - compose:config
+
+  ansible:syntax:
+    desc: Run Ansible playbook syntax check
+    dir: "{{.ANSIBLE_DIR}}"
+    cmds:
+      - cp inventory.yml.example inventory.yml
+      - defer: rm -f inventory.yml
+      - uv run --project .. --frozen ansible-playbook --syntax-check playbook.yml
+
+  compose:config:
+    desc: Validate Docker Compose configuration
+    cmds:
+      - docker compose -f docker-compose.yml config --quiet

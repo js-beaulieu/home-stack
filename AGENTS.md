@@ -99,3 +99,12 @@ home-stack/
       deploy.yml         # SSH deploy on push to main
   CLAUDE.md
 ```
+
+
+<claude-mem-context>
+# Memory Context
+
+# [home-stack] recent context, 2026-04-23 12:53am EDT
+
+No previous sessions found.
+</claude-mem-context>

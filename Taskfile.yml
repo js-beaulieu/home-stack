@@ -10,10 +10,6 @@ vars:
     Taskfile.yml
     .yamllint.yml
 
-env:
-  LANG: C.UTF-8
-  LC_ALL: C.UTF-8
-
 tasks:
   check:
     desc: format + lint + validate (pre-commit sanity check)

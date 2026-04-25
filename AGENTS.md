@@ -13,8 +13,8 @@ Internet (HTTPS :443)
         │  • JWT validation (Zitadel JWKS) → injects X-User-ID, X-User-Email, X-User-Name
         │  • Routes by Docker container labels
         │
-        ├──▶ auth-api   (auth.api.DOMAIN)  — OAuth2 discovery + DCR facade
-        ├──▶ tasks-api  (tasks.api.DOMAIN) — REST + MCP
+        ├──▶ auth-api   (auth.DOMAIN/api)  — OAuth2 discovery + DCR facade
+        ├──▶ tasks-api  (tasks.DOMAIN/api) — REST + MCP
         └──▶ future services
 
 [Zitadel Cloud]  ← external OIDC provider, zero-maintenance
@@ -25,13 +25,13 @@ Auth is handled entirely at the gateway. Individual services trust forwarded ide
 
 ## Auth flow (MCP client connecting for the first time)
 
-1. Client hits `auth.api.DOMAIN/.well-known/oauth-authorization-server`
-2. auth-api returns discovery doc with Zitadel endpoints + `registration_endpoint: https://auth.api.DOMAIN/register`
-3. Client POSTs to `auth.api.DOMAIN/register` with a valid Zitadel Bearer JWT — auth-api calls Zitadel Management API to register redirect URI, returns `mcp` client ID
+1. Client hits `auth.DOMAIN/api/.well-known/oauth-authorization-server`
+2. auth-api returns discovery doc with Zitadel endpoints + `registration_endpoint: https://auth.DOMAIN/api/register`
+3. Client POSTs to `auth.DOMAIN/api/register` with a valid Zitadel Bearer JWT — auth-api calls Zitadel Management API to register redirect URI, returns `mcp` client ID
 4. Client redirects user to Zitadel's `authorization_endpoint` with PKCE
 5. User authenticates in Zitadel, code returned to client
 6. Client exchanges code at Zitadel's `token_endpoint` → JWT
-7. Client calls `tasks.api.DOMAIN/...` with `Authorization: Bearer <jwt>`
+7. Client calls `tasks.DOMAIN/api/...` with `Authorization: Bearer <jwt>`
 8. Traefik validates JWT via JWKS, injects identity headers, forwards request
 
 ## Domain convention
@@ -41,9 +41,9 @@ Services follow a consistent subdomain pattern under the base `DOMAIN`:
 | Service | URL |
 |---|---|
 | Frontend | `appname.DOMAIN` |
-| API / MCP | `appname.api.DOMAIN` |
+| API / MCP | `appname.DOMAIN/api` |
 
-Two DNS wildcard records are needed: `*.DOMAIN` and `*.api.DOMAIN`.
+Only `*.DOMAIN` wildcard DNS is needed for this routing model.
 
 ## Route types
 

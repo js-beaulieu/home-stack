@@ -14,8 +14,8 @@ Internet (HTTPS :443)
         |  - Injects X-User-ID, X-User-Email, X-User-Name
         |  - Routes by Docker labels
         |
-        +--> auth-api   (auth.api.DOMAIN)  - OAuth2 discovery + DCR facade
-        +--> tasks-api  (tasks.api.DOMAIN) - REST + MCP
+        +--> auth-api   (auth.DOMAIN/api)  - OAuth2 discovery + DCR facade
+        +--> tasks-api  (tasks.DOMAIN/api) - REST + MCP
         +--> future services
 
 [Zitadel Cloud]
@@ -31,12 +31,11 @@ Auth is handled entirely at the gateway. Individual services trust forwarded ide
 | Service | URL |
 | --- | --- |
 | Frontend | `appname.DOMAIN` |
-| API / MCP | `appname.api.DOMAIN` |
+| API / MCP | `appname.DOMAIN/api` |
 
-Two wildcard DNS records are required:
+Only one wildcard DNS record is required for this routing model:
 
 - `*.DOMAIN`
-- `*.api.DOMAIN`
 
 ## Environment
 
@@ -68,12 +67,11 @@ The first provisioning path assumes the VM is reachable as `debian` with sudo ac
 
 ### 2. Point DNS at the VPS
 
-Create wildcard DNS records for:
+Create a wildcard DNS record for:
 
 - `*.DOMAIN`
-- `*.api.DOMAIN`
 
-Both should resolve to the VPS public IP before expecting Traefik and Let's Encrypt to work.
+It should resolve to the VPS public IP before expecting Traefik and Let's Encrypt to work.
 
 ### 3. Create and fill the encrypted vault
 

@@ -65,15 +65,31 @@ Use the private key as the GitHub Actions secret `VPS_SSH_KEY`.
 
 The first provisioning path assumes the VM is reachable as `debian` with sudo access.
 
-### 2. Point DNS at the VPS
+### 2. Enable the provider firewall
 
-Create a wildcard DNS record for:
+In OVH Control Panel, enable the VPS Network Firewall with these rules:
 
+- priority `0`: `Allow` `TCP` destination port `22`
+- priority `1`: `Allow` `TCP` destination port `80`
+- priority `2`: `Allow` `TCP` destination port `443`
+- final rule, e.g. priority `19`: `Deny` `IPv4`
+
+Leave source IP and source port blank, leave TCP state as `None`, and leave fragments disabled.
+
+Optionally enable OVH VPS snapshots before provisioning.
+
+### 3. Point DNS at the VPS
+
+For an IPv4-only setup, create these `A` records pointing at the VPS public IPv4:
+
+- `DOMAIN`
 - `*.DOMAIN`
+
+The `DOMAIN` record handles the base hostname itself, for example `jsbeaulieu.com`. The wildcard record handles service subdomains such as `auth.DOMAIN` and `tasks.DOMAIN`. `*.DOMAIN` does not match `DOMAIN` itself, so both records are required.
 
 It should resolve to the VPS public IP before expecting Traefik and Let's Encrypt to work.
 
-### 3. Create and fill the encrypted vault
+### 4. Create and fill the encrypted vault
 
 ```sh
 cd ansible
@@ -97,7 +113,7 @@ ci_ssh_public_key: ""
 
 If you want non-interactive local runs, create `ansible/.vault_pass` with your vault password. That file is gitignored.
 
-### 4. Add GitHub Actions secrets
+### 5. Add GitHub Actions secrets
 
 Add these repository secrets:
 
@@ -105,21 +121,15 @@ Add these repository secrets:
 - `VPS_HOST`
 - `ANSIBLE_VAULT_PASSWORD`
 
-### 5. Trigger first-time provisioning from GitHub
+### 6. Push to `main` or run provisioning manually
 
-Once the vault file is committed and the GitHub secrets exist, trigger provisioning from GitHub:
+Once the vault file is committed and the GitHub secrets exist:
 
-- run `.github/workflows/provision.yml` with `workflow_dispatch`, or
-- push a change to `main` that touches `ansible/**`, `docker-compose.yml`, or `traefik/**`
+- push to `main` to trigger `.github/workflows/deploy.yml` for stack updates
+- push a change to `main` that touches `ansible/**`, `docker-compose.yml`, or `traefik/**` to also trigger `.github/workflows/provision.yml`
+- or run `.github/workflows/provision.yml` with `workflow_dispatch`
 
 The workflow generates `ansible/inventory.yml` dynamically from `VPS_HOST`, so no local inventory file is required.
-
-### 6. Push once provisioning succeeds
-
-After the first successful provision:
-
-- push to `main` to trigger `.github/workflows/provision.yml` for infra changes
-- push to `main` to trigger `.github/workflows/deploy.yml` for stack updates
 
 ## Manual Provisioning Fallback
 
@@ -170,7 +180,6 @@ home-stack/
     dynamic/
       middlewares.yml
   ansible/
-    RUNBOOK.md
     playbook.yml
     inventory.yml.example
     group_vars/

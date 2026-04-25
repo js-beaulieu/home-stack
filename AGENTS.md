@@ -97,7 +97,8 @@ home-stack/
   .github/
     workflows/
       deploy.yml         # SSH deploy on push to main
-  CLAUDE.md
+  AGENTS.md
+  CLAUDE.md -> AGENTS.md
 ```
 
 

@@ -8,3 +8,7 @@ http:
             sub: X-User-ID
             email: X-User-Email
             name: X-User-Name
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - /api

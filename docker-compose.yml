@@ -37,12 +37,13 @@ services:
       - ZITADEL_TOKEN_URL=${ZITADEL_TOKEN_URL}
       - ZITADEL_JWKS_URL=${ZITADEL_JWKS_URL}
       - ZITADEL_MCP_CLIENT_ID=${ZITADEL_MCP_CLIENT_ID}
-      - PUBLIC_URL=https://auth.api.${DOMAIN}
+      - PUBLIC_URL=https://auth.${DOMAIN}/api
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=Host(`auth.api.${DOMAIN}`)"
+      - "traefik.http.routers.auth.rule=Host(`auth.${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.auth.entrypoints=websecure"
       - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.auth.middlewares=strip-api-prefix@file"
 
   tasks-api:
     image: ghcr.io/js-beaulieu/tasks-api:latest
@@ -64,14 +65,15 @@ services:
     labels:
       - "traefik.enable=true"
       # Protected routes — jwt-auth middleware validates Bearer token and injects identity headers
-      - "traefik.http.routers.tasks.rule=Host(`tasks.api.${DOMAIN}`)"
+      - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.tasks.entrypoints=websecure"
       - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tasks.middlewares=jwt-auth@file"
+      - "traefik.http.routers.tasks.middlewares=strip-api-prefix@file,jwt-auth@file"
       # Health check — public, no auth
-      - "traefik.http.routers.tasks-public.rule=Host(`tasks.api.${DOMAIN}`) && PathPrefix(`/health`)"
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api/health`)"
       - "traefik.http.routers.tasks-public.entrypoints=websecure"
       - "traefik.http.routers.tasks-public.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
       - "traefik.http.routers.tasks-public.priority=10"
 
   watchtower:

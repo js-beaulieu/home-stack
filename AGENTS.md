@@ -61,11 +61,23 @@ Only `*.DOMAIN` wildcard DNS is needed for this routing model.
 3. Add Traefik labels following the existing pattern (protected router + health router)
 4. Environment variables go in the host's `/etc/environment` — no `.env` files
 
+## Commands
+
+```bash
+task install            # install uv-managed tooling and the pre-commit hook
+task check              # format + lint + validate
+task format             # yamllint on repo YAML files
+task lint               # yamllint + ansible-lint
+task validate           # ansible syntax + docker compose config
+```
+
+`lefthook` runs `task check` on `pre-commit`.
+
 ## Deployment
 
 **App image updates:** Watchtower polls `ghcr.io` every 5 minutes and auto-restarts containers on new images.
 
-**Stack config changes:** push to `main` → GitHub Actions SSHes into VPS → `docker compose pull && docker compose up -d`.
+**Stack config changes:** `.github/workflows/provision.yml` runs on `main` changes to `ansible/**`, `docker-compose.yml`, or `traefik/**`, then applies the Ansible playbook. The playbook updates the checkout on the VPS and runs `docker compose up -d --remove-orphans` through `home-stack.service`.
 
 ## Environment variables
 
@@ -94,9 +106,14 @@ home-stack/
     traefik.yml          # static config: entrypoints, plugin declaration
     dynamic/
       middlewares.yml    # jwt-auth middleware definition
+  ansible/
+    playbook.yml         # VPS provisioning and stack apply
   .github/
     workflows/
-      deploy.yml         # SSH deploy on push to main
+      ci.yml             # repo checks on PRs to main
+      provision.yml      # apply VPS config on main changes
+  Taskfile.yml
+  lefthook.yml
   AGENTS.md
   CLAUDE.md -> AGENTS.md
 ```

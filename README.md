@@ -41,6 +41,20 @@ Only one wildcard DNS record is required for this routing model:
 
 The deployed stack does not rely on a checked-in `.env` file. Ansible renders `/etc/home-stack.env` on the VPS from the values in `ansible/group_vars/all.yml` and the encrypted `ansible/group_vars/all.vault.yml`. The systemd unit loads that file before running `docker compose`.
 
+## Local Tooling
+
+Install the repo tooling and Git hooks with:
+
+```sh
+task install
+```
+
+The pre-commit hook is managed by `lefthook` and runs:
+
+```sh
+task check
+```
+
 ## Manual Pre-Deploy Steps
 
 These are the minimum manual steps before the first real deployment to a new VPS. The intended default is to let GitHub Actions perform the first provisioning run.
@@ -189,4 +203,6 @@ home-stack/
     workflows/
       ci.yml
       provision.yml
+  Taskfile.yml
+  lefthook.yml
 ```

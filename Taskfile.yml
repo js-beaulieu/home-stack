@@ -18,6 +18,13 @@ tasks:
       - lint
       - validate
 
+  install:
+    desc: Install project tooling and Git hooks
+    cmds:
+      - uv sync --frozen
+      - uv tool install --upgrade lefthook==2.1.6
+      - uv tool run --from lefthook==2.1.6 lefthook install
+
   deps:
     desc: Install Python tooling for Ansible and YAML checks
     cmds:

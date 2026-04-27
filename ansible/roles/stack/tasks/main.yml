@@ -10,10 +10,10 @@
     repo: "{{ stack_repo_url }}"
     dest: "/home/{{ deploy_user }}/home-stack"
     version: main
-    update: false
+    update: true
   become: true
   become_user: "{{ deploy_user }}"
-  notify: Restart home-stack
+  notify: Apply home-stack
 
 - name: Render home-stack environment file
   ansible.builtin.template:
@@ -22,7 +22,7 @@
     owner: root
     group: "{{ deploy_user }}"
     mode: "0640"
-  notify: Restart home-stack
+  notify: Apply home-stack
 
 - name: Install home-stack systemd unit
   ansible.builtin.template:
@@ -33,7 +33,7 @@
     mode: "0644"
   notify:
     - Reload systemd
-    - Restart home-stack
+    - Apply home-stack
 
 - name: Enable and start home-stack
   ansible.builtin.systemd:

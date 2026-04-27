@@ -125,8 +125,7 @@ Add these repository secrets:
 
 Once the vault file is committed and the GitHub secrets exist:
 
-- push to `main` to trigger `.github/workflows/deploy.yml` for stack updates
-- push a change to `main` that touches `ansible/**`, `docker-compose.yml`, or `traefik/**` to also trigger `.github/workflows/provision.yml`
+- push a change to `main` that touches `ansible/**`, `docker-compose.yml`, or `traefik/**` to trigger `.github/workflows/provision.yml`
 - or run `.github/workflows/provision.yml` with `workflow_dispatch`
 
 The workflow generates `ansible/inventory.yml` dynamically from `VPS_HOST`, so no local inventory file is required.
@@ -162,12 +161,13 @@ The Ansible playbook applies three roles in order:
 2. `common`
    Upgrades packages, applies hostname settings, enables UFW for SSH and web traffic, configures fail2ban, enables unattended upgrades, and disables SSH password authentication.
 3. `stack`
-   Clones the repo into `/home/deploy/home-stack`, renders `/etc/home-stack.env`, installs `home-stack.service`, and enables the service.
+   Syncs the repo into `/home/deploy/home-stack`, renders `/etc/home-stack.env`, installs `home-stack.service`, and enables the service.
 
 ## Ongoing Deployment
 
 - `.github/workflows/provision.yml` runs on changes to `ansible/**`, `docker-compose.yml`, or `traefik/**`
-- `.github/workflows/deploy.yml` runs on pushes to `main` and SSHes into the VPS as `deploy`
+- the playbook updates `/home/deploy/home-stack` on the VPS and runs `docker compose up -d --remove-orphans` through `home-stack.service` when the repo checkout, environment file, or systemd unit changes
+- Watchtower handles container image refreshes for services when upstream images are updated
 
 ## Repo Structure
 
@@ -189,5 +189,4 @@ home-stack/
     workflows/
       check.yml
       provision.yml
-      deploy.yml
 ```

@@ -4,14 +4,16 @@ After=docker.service
 Requires=docker.service
 
 [Service]
+Type=oneshot
+RemainAfterExit=yes
 User={{ deploy_user }}
 Group={{ deploy_user }}
 SupplementaryGroups=docker
 WorkingDirectory=/home/{{ deploy_user }}/home-stack
 EnvironmentFile=/etc/home-stack.env
-ExecStart=/usr/bin/docker compose up --remove-orphans
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecReload=/usr/bin/docker compose up -d --remove-orphans
 ExecStop=/usr/bin/docker compose down
-Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target

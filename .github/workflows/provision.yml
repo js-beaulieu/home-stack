@@ -1,6 +1,6 @@
-name: Provision VPS
+name: Provision
 
-"on":
+on:
   push:
     branches: [main]
     paths:

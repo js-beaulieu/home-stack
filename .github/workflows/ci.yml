@@ -1,12 +1,11 @@
-name: Check
+name: CI
 
-"on":
+on:
   pull_request:
-  push:
     branches: [main]
 
 jobs:
-  check:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

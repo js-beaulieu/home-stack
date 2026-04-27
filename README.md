@@ -187,6 +187,6 @@ home-stack/
       all.vault.yml.example
   .github/
     workflows/
-      check.yml
+      ci.yml
       provision.yml
 ```

@@ -43,11 +43,13 @@ The deployed stack does not rely on a checked-in `.env` file. Ansible renders `/
 
 ## Local Tooling
 
-Install the repo tooling and Git hooks with:
+Install the repo development tools and Git hooks with:
 
 ```sh
 task install
 ```
+
+Runtime Ansible dependencies are kept in the default uv dependency set. Linters and hook tooling live in the `dev` dependency group.
 
 The pre-commit hook is managed by `lefthook` and runs:
 

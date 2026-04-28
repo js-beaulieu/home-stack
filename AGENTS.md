@@ -64,7 +64,7 @@ Only `*.DOMAIN` wildcard DNS is needed for this routing model.
 ## Commands
 
 ```bash
-task install            # install uv-managed tooling and the pre-commit hook
+task install            # install uv-managed dev tooling and the pre-commit hook
 task check              # format + lint + validate
 task format             # yamllint on repo YAML files
 task lint               # yamllint + ansible-lint

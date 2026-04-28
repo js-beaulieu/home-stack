@@ -21,25 +21,24 @@ tasks:
   install:
     desc: Install project tooling and Git hooks
     cmds:
-      - uv sync --frozen
-      - uv tool install --upgrade lefthook==2.1.6
-      - uv tool run --from lefthook==2.1.6 lefthook install
+      - uv sync --frozen --group dev
+      - uv run --frozen --group dev lefthook install
 
   deps:
-    desc: Install Python tooling for Ansible and YAML checks
+    desc: Install Python dependencies for Ansible
     cmds:
-      - uv sync --frozen
+      - uv sync --frozen --no-dev
 
   format:
     desc: Check YAML formatting
     cmds:
-      - uv run --frozen yamllint {{.YAML_FILES}}
+      - uv run --frozen --group dev yamllint {{.YAML_FILES}}
 
   lint:
     desc: Run Ansible and YAML lint checks
     cmds:
-      - uv run --frozen yamllint {{.YAML_FILES}}
-      - uv run --frozen ansible-lint {{.ANSIBLE_DIR}}/playbook.yml
+      - uv run --frozen --group dev yamllint {{.YAML_FILES}}
+      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/playbook.yml
 
   validate:
     desc: Validate Ansible syntax and Docker Compose config
@@ -51,7 +50,7 @@ tasks:
     desc: Run Ansible playbook syntax check
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - uv run --project .. --frozen ansible-playbook --inventory localhost, --syntax-check playbook.yml
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check playbook.yml
 
   compose:config:
     desc: Validate Docker Compose configuration

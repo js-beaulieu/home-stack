@@ -15,6 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - name: Install Ansible dependencies
+        run: uv sync --frozen --no-dev
+
       - name: Generate inventory
         run: |
           cat > ansible/inventory.yml <<EOF
@@ -26,12 +35,24 @@ jobs:
                 ansible_become: true
           EOF
 
+      - name: Prepare SSH key and vault password
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/home-stack-ci
+          chmod 600 ~/.ssh/home-stack-ci
+          printf '%s\n' "$ANSIBLE_VAULT_PASSWORD" > "$RUNNER_TEMP/ansible-vault-pass"
+          chmod 600 "$RUNNER_TEMP/ansible-vault-pass"
+        env:
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+
       - name: Run playbook
-        uses: arillso/action.playbook@1.2.0
-        with:
-          playbook: ansible/playbook.yml
-          inventory: ansible/inventory.yml
-          private_key: ${{ secrets.VPS_SSH_KEY }}
-          vault_password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          trap 'rm -f "$RUNNER_TEMP/ansible-vault-pass"' EXIT
+          uv run --frozen --no-dev ansible-playbook \
+            ansible/playbook.yml \
+            --inventory ansible/inventory.yml \
+            --private-key ~/.ssh/home-stack-ci \
+            --vault-password-file "$RUNNER_TEMP/ansible-vault-pass"
         env:
           ANSIBLE_HOST_KEY_CHECKING: "false"

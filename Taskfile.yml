@@ -51,9 +51,7 @@ tasks:
     desc: Run Ansible playbook syntax check
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - cp inventory.yml.example inventory.yml
-      - defer: rm -f inventory.yml
-      - uv run --project .. --frozen ansible-playbook --syntax-check playbook.yml
+      - uv run --project .. --frozen ansible-playbook --inventory localhost, --syntax-check playbook.yml
 
   compose:config:
     desc: Validate Docker Compose configuration

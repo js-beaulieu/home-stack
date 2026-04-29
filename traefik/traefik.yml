@@ -17,12 +17,6 @@ certificatesResolvers:
       httpChallenge:
         entryPoint: web
 
-experimental:
-  plugins:
-    jwt:
-      moduleName: github.com/team-carepay/traefik-jwt-plugin
-      version: "v0.6.0"
-
 providers:
   docker:
     exposedByDefault: false

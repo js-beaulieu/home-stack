@@ -1,6 +1,8 @@
 # home-stack
 
-Docker Compose stack for a personal VPS. Traefik is the single entry point for all services — it handles TLS, JWT validation, and routes requests to the right container.
+Docker Compose stack for a personal VPS. Traefik is the single entry point for all services — it handles TLS and routes requests to the right container.
+
+Keycloak is the planned authentication provider, but authentication is not implemented yet in this cleanup stage. Do not describe the current stack as protected by JWT validation until the Keycloak gateway stage lands.
 
 ## Architecture
 
@@ -10,29 +12,25 @@ Internet (HTTPS :443)
         ▼
    [Traefik]
         │  • TLS via Let's Encrypt
-        │  • JWT validation (Zitadel JWKS) → injects X-User-ID, X-User-Email, X-User-Name
         │  • Routes by Docker container labels
         │
-        ├──▶ auth-api   (auth.DOMAIN/api)  — OAuth2 discovery + DCR facade
         ├──▶ tasks-api  (tasks.DOMAIN/api) — REST + MCP
+        ├──▶ future Keycloak auth host
         └──▶ future services
 
-[Zitadel Cloud]  ← external OIDC provider, zero-maintenance
-                   issues JWTs; auth-api proxies discovery and handles DCR
+[Future Keycloak]  ← self-hosted OIDC provider
+                    will issue JWTs for Traefik validation and provide login, account, discovery, and DCR
 ```
 
-Auth is handled entirely at the gateway. Individual services trust forwarded identity headers — they never validate tokens themselves.
+The target auth model is handled entirely at the gateway. Traefik will validate Keycloak JWTs and forward identity headers; individual services will trust forwarded identity headers and never validate tokens themselves.
 
-## Auth flow (MCP client connecting for the first time)
+## Planned auth flow
 
-1. Client hits `auth.DOMAIN/api/.well-known/oauth-authorization-server`
-2. auth-api returns discovery doc with Zitadel endpoints + `registration_endpoint: https://auth.DOMAIN/api/register`
-3. Client POSTs to `auth.DOMAIN/api/register` with a valid Zitadel Bearer JWT — auth-api calls Zitadel Management API to register redirect URI, returns `mcp` client ID
-4. Client redirects user to Zitadel's `authorization_endpoint` with PKCE
-5. User authenticates in Zitadel, code returned to client
-6. Client exchanges code at Zitadel's `token_endpoint` → JWT
-7. Client calls `tasks.DOMAIN/api/...` with `Authorization: Bearer <jwt>`
-8. Traefik validates JWT via JWKS, injects identity headers, forwards request
+1. Keycloak will serve OIDC discovery, authorization, token, JWKS, account, and DCR endpoints on `auth.DOMAIN`.
+2. MCP clients will register through Keycloak DCR.
+3. Users will authenticate in Keycloak.
+4. Clients will call service APIs with Keycloak access tokens.
+5. Traefik will validate those tokens against Keycloak JWKS, inject `X-User-ID`, `X-User-Email`, and `X-User-Name`, then forward requests.
 
 ## Domain convention
 
@@ -49,10 +47,10 @@ Only `*.DOMAIN` wildcard DNS is needed for this routing model.
 
 | Type | Traefik | Middleware |
 |---|---|---|
-| Public-facing API | yes | `jwt-auth` |
+| Public-facing API | yes | none until Keycloak JWT validation lands |
 | Health | yes | none (priority 10) |
 | Internal service-to-service | no | Docker `internal` network |
-| Personal admin | yes | IP allowlist |
+| Personal admin | yes | future Keycloak admin routes on the normal Keycloak host, IP-restricted |
 
 ## Adding a new service
 
@@ -86,13 +84,7 @@ Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
 | Variable | Description |
 |---|---|
 | `DOMAIN` | Base domain (e.g. `jsbeaulieu.com`) |
-| `ZITADEL_ISSUER` | Zitadel issuer URL (e.g. `https://home-stack-fpczvt.us1.zitadel.cloud`) |
-| `ZITADEL_AUTH_URL` | Zitadel authorization endpoint |
-| `ZITADEL_TOKEN_URL` | Zitadel token endpoint |
-| `ZITADEL_JWKS_URL` | Zitadel JWKS endpoint |
-| `ZITADEL_MCP_CLIENT_ID` | Zitadel `mcp` app client ID returned on every DCR registration |
 | `TASKS_PORT` | Internal port for tasks-api (default `8080`) |
-| `AUTH_PORT` | Internal port for auth-api (default `8080`) |
 | `LOG_FORMAT` | `json` or `text` |
 | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications |
@@ -103,9 +95,9 @@ Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
 home-stack/
   docker-compose.yml
   traefik/
-    traefik.yml          # static config: entrypoints, plugin declaration
+    traefik.yml          # static config: entrypoints and providers
     dynamic/
-      middlewares.yml    # jwt-auth middleware definition
+      middlewares.yml    # shared route middleware definitions
   ansible/
     playbook.yml         # VPS provisioning and stack apply
   .github/

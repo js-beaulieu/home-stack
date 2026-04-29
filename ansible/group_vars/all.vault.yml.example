@@ -1,8 +1,3 @@
 domain: ""
 acme_email: ""
-zitadel_issuer: ""
-zitadel_auth_url: ""
-zitadel_token_url: ""
-zitadel_jwks_url: ""
-zitadel_mcp_client_id: ""
 ci_ssh_public_key: ""

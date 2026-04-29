@@ -1,6 +1,8 @@
 # home-stack
 
-Docker Compose stack for a personal VPS. Traefik is the single entry point for all services. It terminates TLS, validates JWTs against Zitadel JWKS, injects identity headers, and routes traffic to containers by label.
+Docker Compose stack for a personal VPS. Traefik is the single entry point for all services. It terminates TLS and routes traffic to containers by label.
+
+Keycloak is the planned authentication provider, but authentication is not implemented yet in this cleanup stage. Until the Keycloak gateway stage lands, public service routes are not protected by JWT validation.
 
 ## Architecture
 
@@ -10,21 +12,19 @@ Internet (HTTPS :443)
         v
    [Traefik]
         |  - TLS via Let's Encrypt
-        |  - JWT validation via Zitadel JWKS
-        |  - Injects X-User-ID, X-User-Email, X-User-Name
         |  - Routes by Docker labels
         |
-        +--> auth-api   (auth.DOMAIN/api)  - OAuth2 discovery + DCR facade
         +--> tasks-api  (tasks.DOMAIN/api) - REST + MCP
+        +--> future Keycloak auth host
         +--> future services
 
-[Zitadel Cloud]
-  - external OIDC provider
-  - issues JWTs
-  - auth-api proxies discovery and handles DCR
+[Future Keycloak]
+  - self-hosted OIDC provider
+  - will issue JWTs for Traefik validation
+  - will provide discovery, login, account console, and DCR
 ```
 
-Auth is handled entirely at the gateway. Individual services trust forwarded identity headers and do not validate tokens themselves.
+The target auth model remains gateway-owned: Traefik will validate Keycloak JWTs and forward identity headers to services. Individual services will trust forwarded identity headers and will not validate tokens themselves.
 
 ## Domain Convention
 
@@ -119,11 +119,6 @@ Set all required values:
 ```yaml
 domain: ""
 acme_email: ""
-zitadel_issuer: ""
-zitadel_auth_url: ""
-zitadel_token_url: ""
-zitadel_jwks_url: ""
-zitadel_mcp_client_id: ""
 ci_ssh_public_key: ""
 ```
 

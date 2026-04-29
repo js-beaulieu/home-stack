@@ -1,7 +1,6 @@
 deploy_user: deploy
 hostname: home-stack
 tasks_port: 8080
-auth_port: 8080
 log_level: info
 log_format: json
 stack_repo_url: https://github.com/js-beaulieu/home-stack.git

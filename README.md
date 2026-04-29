@@ -76,6 +76,8 @@ Local routes use localhost-friendly hostnames and do not require wildcard DNS, L
 - `http://tasks.localhost/api`
 - `http://auth.localhost/` reserved for the future Keycloak service
 
+Postgres is internal-only in the base stack. Local development exposes it on `127.0.0.1:5432` so a local database client can connect without routing the database through Traefik.
+
 The local overlay is for development only. Production provisioning continues to use the base Compose file and the VPS environment rendered by Ansible.
 
 Follow local logs separately:
@@ -153,6 +155,9 @@ Set all required values:
 domain: ""
 acme_email: ""
 ci_ssh_public_key: ""
+postgres_db: ""
+postgres_user: ""
+postgres_password: ""
 ```
 
 If you want non-interactive local runs, create `ansible/.vault_pass` with your vault password. That file is gitignored.
@@ -212,6 +217,24 @@ The Ansible playbook applies three roles in order:
 - `.github/workflows/provision.yml` runs on changes to `ansible/**`, `docker-compose.yml`, or `traefik/**`
 - the playbook updates `/home/deploy/home-stack` on the VPS and runs `docker compose up -d --remove-orphans` through `home-stack.service` when the repo checkout, environment file, or systemd unit changes
 - Watchtower handles container image refreshes for services when upstream images are updated
+
+## Postgres Backup And Restore
+
+Use logical backups as the default Postgres backup path. They are portable across hosts and are the right fit while this stack has one small database service.
+
+Create a backup from a running local stack:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > postgres.dump
+```
+
+Restore that dump into a running local stack:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < postgres.dump
+```
+
+Volume-level backups of `postgres-data` are a coarse fallback for whole-stack recovery, not the primary day-to-day backup model. Stop the stack before copying the volume data directly.
 
 ## Repo Structure
 

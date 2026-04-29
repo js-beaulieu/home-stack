@@ -20,3 +20,11 @@ services:
       - "traefik.http.routers.tasks-public.entrypoints=web"
       - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
       - "traefik.http.routers.tasks-public.priority=10"
+
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: home_stack_admin
+      POSTGRES_PASSWORD: home-stack-local-postgres

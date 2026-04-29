@@ -92,6 +92,9 @@ Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
 | `LOG_FORMAT` | `json` or `text` |
 | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications |
+| `POSTGRES_DB` | Initial Postgres maintenance database name, rendered from vault on the VPS |
+| `POSTGRES_USER` | Initial Postgres admin/superuser name, rendered from vault on the VPS |
+| `POSTGRES_PASSWORD` | Initial Postgres admin/superuser password, rendered from vault on the VPS |
 
 ## Structure
 

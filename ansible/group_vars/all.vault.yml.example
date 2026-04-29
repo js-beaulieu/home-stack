@@ -1,3 +1,6 @@
 domain: ""
 acme_email: ""
 ci_ssh_public_key: ""
+postgres_db: ""
+postgres_user: ""
+postgres_password: ""

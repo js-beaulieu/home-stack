@@ -38,6 +38,7 @@ services:
       - LOG_DETAILED=${LOG_DETAILED:-false}
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
       # Auth is intentionally disabled until the Keycloak gateway stage lands.
       - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.tasks.entrypoints=websecure"

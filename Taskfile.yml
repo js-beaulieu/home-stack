@@ -6,6 +6,7 @@ vars:
     .github/workflows
     ansible
     docker-compose.yml
+    docker-compose.local.yml
     traefik
     Taskfile.yml
     .yamllint.yml
@@ -29,6 +30,28 @@ tasks:
     cmds:
       - uv sync --frozen --no-dev
 
+  dev:
+    desc: Start the local development stack and follow logs
+    deps:
+      - dev:start
+      - dev:logs
+
+  dev:start:
+    desc: Start the local HTTP stack and run local provisioning
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --remove-orphans
+      - uv run --frozen --no-dev ansible-playbook --inventory localhost, ansible/local.yml
+
+  dev:logs:
+    desc: Follow local development stack logs
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f
+
+  dev:stop:
+    desc: Stop the local development stack without deleting volumes
+    cmds:
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml stop
+
   format:
     desc: Check YAML formatting
     cmds:
@@ -38,7 +61,7 @@ tasks:
     desc: Run Ansible and YAML lint checks
     cmds:
       - uv run --frozen --group dev yamllint {{.YAML_FILES}}
-      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/playbook.yml
+      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/playbook.yml {{.ANSIBLE_DIR}}/local.yml
 
   validate:
     desc: Validate Ansible syntax and Docker Compose config
@@ -51,8 +74,10 @@ tasks:
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
       - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check playbook.yml
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check local.yml
 
   compose:config:
     desc: Validate Docker Compose configuration
     cmds:
       - docker compose -f docker-compose.yml config --quiet
+      - docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet

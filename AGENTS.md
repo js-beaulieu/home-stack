@@ -57,12 +57,16 @@ Only `*.DOMAIN` wildcard DNS is needed for this routing model.
 1. Add a `services:` block in `docker-compose.yml`
 2. Attach to `public` network (and `internal` if it calls other services)
 3. Add Traefik labels following the existing pattern (protected router + health router)
-4. Environment variables go in the host's `/etc/environment` — no `.env` files
+4. VPS environment variables are rendered by Ansible into `/etc/home-stack.env`; local-only development values may live in `.env`
 
 ## Commands
 
 ```bash
 task install            # install uv-managed dev tooling and the pre-commit hook
+task dev                # start local HTTP stack, run local provisioning, follow logs
+task dev:start          # start local HTTP stack and run local provisioning
+task dev:logs           # follow local development stack logs
+task dev:stop           # stop local containers without deleting volumes
 task check              # format + lint + validate
 task format             # yamllint on repo YAML files
 task lint               # yamllint + ansible-lint
@@ -94,12 +98,19 @@ Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
 ```
 home-stack/
   docker-compose.yml
+  docker-compose.local.yml
+  keycloak/
+    README.md
+    scripts/
   traefik/
     traefik.yml          # static config: entrypoints and providers
+    local/
+      traefik.yml        # local static config: HTTP only, no ACME
     dynamic/
       middlewares.yml    # shared route middleware definitions
   ansible/
     playbook.yml         # VPS provisioning and stack apply
+    local.yml            # local development provisioning entrypoint
   .github/
     workflows/
       ci.yml             # repo checks on PRs to main

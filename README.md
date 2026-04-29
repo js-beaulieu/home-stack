@@ -57,6 +57,39 @@ The pre-commit hook is managed by `lefthook` and runs:
 task check
 ```
 
+## Local Development
+
+Local development uses the committed Compose overlay and plain HTTP Traefik config:
+
+```sh
+task dev:start
+```
+
+This starts the stack with:
+
+- `docker-compose.yml`
+- `docker-compose.local.yml`
+- `traefik/local/traefik.yml`
+
+Local routes use localhost-friendly hostnames and do not require wildcard DNS, Let's Encrypt, self-signed certificates, or `/etc/hosts` edits:
+
+- `http://tasks.localhost/api`
+- `http://auth.localhost/` reserved for the future Keycloak service
+
+The local overlay is for development only. Production provisioning continues to use the base Compose file and the VPS environment rendered by Ansible.
+
+Follow local logs separately:
+
+```sh
+task dev:logs
+```
+
+Stop local containers without deleting volumes:
+
+```sh
+task dev:stop
+```
+
 ## Manual Pre-Deploy Steps
 
 These are the minimum manual steps before the first real deployment to a new VPS. The intended default is to let GitHub Actions perform the first provisioning run.
@@ -186,12 +219,19 @@ The Ansible playbook applies three roles in order:
 home-stack/
   README.md
   docker-compose.yml
+  docker-compose.local.yml
+  keycloak/
+    README.md
+    scripts/
   traefik/
     traefik.yml
+    local/
+      traefik.yml
     dynamic/
       middlewares.yml
   ansible/
     playbook.yml
+    local.yml
     inventory.yml.example
     group_vars/
       all.yml

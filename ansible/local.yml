@@ -1,0 +1,14 @@
+- name: Provision local home-stack
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    compose_project_dir: "{{ playbook_dir }}/.."
+
+  tasks:
+    - name: Confirm local Traefik container is running
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.yml -f docker-compose.local.yml ps --status running traefik
+        chdir: "{{ compose_project_dir }}"
+      changed_when: false

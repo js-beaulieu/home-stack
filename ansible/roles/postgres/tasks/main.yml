@@ -1,0 +1,32 @@
+- name: Install PostgreSQL Python adapter for Ansible modules
+  ansible.builtin.apt:
+    name: python3-psycopg2
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_connection != "local"
+
+- name: Provision Keycloak PostgreSQL role
+  community.postgresql.postgresql_user:
+    login_host: "{{ postgres_host }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ pg_admin_username }}"
+    login_password: "{{ pg_admin_password }}"
+    login_db: "{{ pg_admin_database }}"
+    name: "{{ pg_keycloak_username }}"
+    password: "{{ pg_keycloak_password }}"
+    role_attr_flags: LOGIN
+    state: present
+  no_log: true
+
+- name: Provision Keycloak PostgreSQL database
+  community.postgresql.postgresql_db:
+    login_host: "{{ postgres_host }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ pg_admin_username }}"
+    login_password: "{{ pg_admin_password }}"
+    maintenance_db: "{{ pg_admin_database }}"
+    name: "{{ pg_keycloak_database }}"
+    owner: "{{ pg_keycloak_username }}"
+    state: present
+  no_log: true

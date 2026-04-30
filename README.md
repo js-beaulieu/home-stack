@@ -2,7 +2,7 @@
 
 Docker Compose stack for a personal VPS. Traefik is the single entry point for all services. It terminates TLS and routes traffic to containers by label.
 
-Keycloak is the planned authentication provider, but authentication is not implemented yet in this cleanup stage. Until the Keycloak gateway stage lands, public service routes are not protected by JWT validation.
+Keycloak is the planned authentication provider and now runs in the stack at the auth host. Authentication is not enforced at the gateway yet. Until the Keycloak gateway stage lands, public service routes are not protected by JWT validation.
 
 ## Architecture
 
@@ -15,10 +15,10 @@ Internet (HTTPS :443)
         |  - Routes by Docker labels
         |
         +--> tasks-api  (tasks.DOMAIN/api) - REST + MCP
-        +--> future Keycloak auth host
+        +--> Keycloak auth host  (auth.DOMAIN)
         +--> future services
 
-[Future Keycloak]
+[Keycloak]
   - self-hosted OIDC provider
   - will issue JWTs for Traefik validation
   - will provide discovery, login, account console, and DCR
@@ -74,7 +74,7 @@ This starts the stack with:
 Local routes use localhost-friendly hostnames and do not require wildcard DNS, Let's Encrypt, self-signed certificates, or `/etc/hosts` edits:
 
 - `http://tasks.localhost/api`
-- `http://auth.localhost/` reserved for the future Keycloak service
+- `http://auth.localhost/`
 
 Postgres is internal-only in the base stack. Local development exposes it on `127.0.0.1:5432` so a local database client can connect without routing the database through Traefik.
 
@@ -155,9 +155,15 @@ Set all required values:
 domain: ""
 acme_email: ""
 ci_ssh_public_key: ""
-postgres_db: ""
-postgres_user: ""
-postgres_password: ""
+pg_admin_database: ""
+pg_admin_username: ""
+pg_admin_password: ""
+pg_keycloak_database: ""
+pg_keycloak_username: ""
+pg_keycloak_password: ""
+keycloak_admin_username: ""
+keycloak_admin_password: ""
+keycloak_admin_allowed_ips: ""
 ```
 
 If you want non-interactive local runs, create `ansible/.vault_pass` with your vault password. That file is gitignored.
@@ -211,6 +217,8 @@ The Ansible playbook applies three roles in order:
    Upgrades packages, applies hostname settings, enables UFW for SSH and web traffic, configures fail2ban, enables unattended upgrades, and disables SSH password authentication.
 3. `stack`
    Syncs the repo into `/home/deploy/home-stack`, renders `/etc/home-stack.env`, installs `home-stack.service`, and enables the service.
+4. `postgres`
+   Provisions Postgres resources in the running stack, including the Keycloak database and role.
 
 ## Ongoing Deployment
 

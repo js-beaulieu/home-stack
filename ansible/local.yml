@@ -1,14 +1,39 @@
 - name: Provision local home-stack
   hosts: localhost
-  connection: local
+  become: false
   gather_facts: false
 
   vars:
-    compose_project_dir: "{{ playbook_dir }}/.."
+    local_compose_project_dir: "{{ playbook_dir }}/.."
+    pg_admin_database: postgres
+    pg_admin_username: home_stack_admin
+    pg_admin_password: home-stack-local-postgres
+    pg_keycloak_database: keycloak
+    pg_keycloak_username: keycloak
+    pg_keycloak_password: home-stack-local-keycloak-db
+    keycloak_admin_username: admin
+    keycloak_admin_password: home-stack-local-keycloak
 
   tasks:
     - name: Confirm local Traefik container is running
       ansible.builtin.command:
         cmd: docker compose -f docker-compose.yml -f docker-compose.local.yml ps --status running traefik
-        chdir: "{{ compose_project_dir }}"
+        chdir: "{{ local_compose_project_dir }}"
       changed_when: false
+      delegate_to: localhost
+
+    - name: Resolve local Postgres container address
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres hostname -i
+        chdir: "{{ local_compose_project_dir }}"
+      register: local_postgres_address
+      changed_when: false
+      delegate_to: localhost
+
+    - name: Provision local Postgres resources
+      ansible.builtin.include_role:
+        name: postgres
+        apply:
+          delegate_to: localhost
+      vars:
+        postgres_host: "{{ local_postgres_address.stdout | trim }}"

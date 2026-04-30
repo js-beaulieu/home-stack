@@ -59,9 +59,9 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
     environment:
-      - POSTGRES_DB
-      - POSTGRES_USER
-      - POSTGRES_PASSWORD
+      POSTGRES_DB: ${PG_ADMIN_DATABASE:-}
+      POSTGRES_USER: ${PG_ADMIN_USERNAME:-}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:-}
     healthcheck:
       test:
         - CMD-SHELL
@@ -70,6 +70,44 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    restart: unless-stopped
+    command: start
+    env_file:
+      - path: .env
+        required: false
+    networks:
+      - public
+      - internal
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${PG_KEYCLOAK_DATABASE:-}
+      KC_DB_USERNAME: ${PG_KEYCLOAK_USERNAME:-}
+      KC_DB_PASSWORD: ${PG_KEYCLOAK_PASSWORD:-}
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: https://auth.${DOMAIN:-}
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.keycloak-admin.rule=Host(`auth.${DOMAIN:-}`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.keycloak-admin.entrypoints=websecure"
+      - "traefik.http.routers.keycloak-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.priority=100"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=${KEYCLOAK_ADMIN_ALLOWED_IPS:-}"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.${DOMAIN:-}`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
 
   watchtower:
     image: ghcr.io/nicholas-fedor/watchtower:latest

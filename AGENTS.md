@@ -2,7 +2,7 @@
 
 Docker Compose stack for a personal VPS. Traefik is the single entry point for all services — it handles TLS and routes requests to the right container.
 
-Keycloak is the planned authentication provider, but authentication is not implemented yet in this cleanup stage. Do not describe the current stack as protected by JWT validation until the Keycloak gateway stage lands.
+Keycloak is the planned authentication provider and now runs in the stack, but gateway authentication is not implemented yet. Do not describe the current stack as protected by JWT validation until the Keycloak gateway stage lands.
 
 ## Architecture
 
@@ -15,11 +15,11 @@ Internet (HTTPS :443)
         │  • Routes by Docker container labels
         │
         ├──▶ tasks-api  (tasks.DOMAIN/api) — REST + MCP
-        ├──▶ future Keycloak auth host
+        ├──▶ Keycloak auth host (auth.DOMAIN)
         └──▶ future services
 
-[Future Keycloak]  ← self-hosted OIDC provider
-                    will issue JWTs for Traefik validation and provide login, account, discovery, and DCR
+[Keycloak]  ← self-hosted OIDC provider
+              will issue JWTs for Traefik validation and provide login, account, discovery, and DCR
 ```
 
 The target auth model is handled entirely at the gateway. Traefik will validate Keycloak JWTs and forward identity headers; individual services will trust forwarded identity headers and never validate tokens themselves.
@@ -81,9 +81,9 @@ task validate           # ansible syntax + docker compose config
 
 **Stack config changes:** `.github/workflows/provision.yml` runs on `main` changes to `ansible/**`, `docker-compose.yml`, or `traefik/**`, then applies the Ansible playbook. The playbook updates the checkout on the VPS and runs `docker compose up -d --remove-orphans` through `home-stack.service`.
 
-## Environment variables
+## Environment and vault variables
 
-Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
+Rendered into `/etc/home-stack.env` on the VPS and referenced by `docker-compose.yml`:
 
 | Variable | Description |
 |---|---|
@@ -92,9 +92,15 @@ Set on the VPS host, referenced in `docker-compose.yml` via `${VAR}`:
 | `LOG_FORMAT` | `json` or `text` |
 | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications |
-| `POSTGRES_DB` | Initial Postgres maintenance database name, rendered from vault on the VPS |
-| `POSTGRES_USER` | Initial Postgres admin/superuser name, rendered from vault on the VPS |
-| `POSTGRES_PASSWORD` | Initial Postgres admin/superuser password, rendered from vault on the VPS |
+| `PG_ADMIN_DATABASE` | Initial Postgres maintenance database name, rendered from vault on the VPS |
+| `PG_ADMIN_USERNAME` | Initial Postgres admin/superuser name, rendered from vault on the VPS |
+| `PG_ADMIN_PASSWORD` | Initial Postgres admin/superuser password, rendered from vault on the VPS |
+| `PG_KEYCLOAK_DATABASE` | Keycloak application database name, rendered from vault on the VPS |
+| `PG_KEYCLOAK_USERNAME` | Keycloak database role name, rendered from vault on the VPS |
+| `PG_KEYCLOAK_PASSWORD` | Keycloak database role password, rendered from vault on the VPS |
+| `KEYCLOAK_ADMIN_USERNAME` | Initial Keycloak bootstrap admin username, rendered from vault on the VPS |
+| `KEYCLOAK_ADMIN_PASSWORD` | Initial Keycloak bootstrap admin password, rendered from vault on the VPS |
+| `KEYCLOAK_ADMIN_ALLOWED_IPS` | Comma-separated CIDR allowlist for Keycloak admin routes, rendered from vault on the VPS |
 
 ## Structure
 

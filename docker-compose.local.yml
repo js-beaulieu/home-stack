@@ -23,8 +23,30 @@ services:
 
   postgres:
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: home_stack_admin
-      POSTGRES_PASSWORD: home-stack-local-postgres
+      POSTGRES_DB: ${PG_ADMIN_DATABASE:-postgres}
+      POSTGRES_USER: ${PG_ADMIN_USERNAME:-home_stack_admin}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:-home-stack-local-postgres}
+
+  keycloak:
+    command: start-dev
+    environment:
+      KC_HOSTNAME: http://auth.localhost
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-home-stack-local-keycloak}
+      KC_DB_URL_DATABASE: ${PG_KEYCLOAK_DATABASE:-keycloak}
+      KC_DB_USERNAME: ${PG_KEYCLOAK_USERNAME:-keycloak}
+      KC_DB_PASSWORD: ${PG_KEYCLOAK_PASSWORD:-home-stack-local-keycloak-db}
+      KEYCLOAK_ADMIN_ALLOWED_IPS: 127.0.0.1/32,::1/128,172.16.0.0/12
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.keycloak-admin.rule=Host(`auth.localhost`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.keycloak-admin.entrypoints=web"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.priority=100"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=127.0.0.1/32,::1/128,172.16.0.0/12"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.localhost`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"

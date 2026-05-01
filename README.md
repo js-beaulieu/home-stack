@@ -2,7 +2,7 @@
 
 Docker Compose stack for a personal VPS. Traefik is the single entry point for all services. It terminates TLS and routes traffic to containers by label.
 
-Keycloak is the planned authentication provider and now runs in the stack at the auth host. Authentication is not enforced at the gateway yet. Until the Keycloak gateway stage lands, public service routes are not protected by JWT validation.
+Keycloak now runs in the stack at the auth host, and `tasks-api` routes are validated at the gateway through Traefik JWT middleware. The broader auth rollout is still in progress: DCR, Google brokering, and the first real production deploy validation are not finished yet.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ Internet (HTTPS :443)
   - will provide discovery, login, account console, and DCR
 ```
 
-The target auth model remains gateway-owned: Traefik will validate Keycloak JWTs and forward identity headers to services. Individual services will trust forwarded identity headers and will not validate tokens themselves.
+The auth model remains gateway-owned: Traefik validates Keycloak JWTs and forwards identity headers to services. Individual services trust forwarded identity headers and do not validate tokens themselves.
 
 ## Domain Convention
 
@@ -94,7 +94,7 @@ task dev:stop
 
 After local bring-up, the shared Ansible flow now ensures a minimal `home-stack` realm in Keycloak. The first test user is still manual in this stage: sign in to the restricted admin UI at `http://auth.localhost/admin/` with the local admin credentials from [ansible/local.yml](/home/js-beaulieu/Projects/home-stack/ansible/local.yml), create a user in the `home-stack` realm, then verify browser login and account-console access through `http://auth.localhost/realms/home-stack/account/`.
 
-The realm provisioning also pins the default Keycloak OIDC client-scope set that API-facing tokens depend on. The gateway header contract intentionally relies on standard claims only:
+The realm provisioning also pins the default Keycloak OIDC client-scope set that API-facing tokens depend on. Local `tasks-api` routes now require a valid Keycloak bearer token on every `/api/*` route except `/api/health`. The gateway header contract intentionally relies on standard claims only:
 
 - `sub` for `X-User-ID`
 - `email` for `X-User-Email`

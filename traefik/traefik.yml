@@ -9,6 +9,12 @@ entryPoints:
   websecure:
     address: ":443"
 
+experimental:
+  plugins:
+    jwt:
+      moduleName: github.com/agilezebra/jwt-middleware
+      version: v1.4.1
+
 certificatesResolvers:
   letsencrypt:
     acme:

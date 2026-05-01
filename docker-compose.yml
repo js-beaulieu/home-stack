@@ -39,17 +39,17 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=home-stack_public"
-      # Auth is intentionally disabled until the Keycloak gateway stage lands.
       - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.tasks.entrypoints=websecure"
       - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.tasks.middlewares=strip-api-prefix@file"
+      - "traefik.http.routers.tasks.middlewares=home-stack-api-jwt@file,strip-api-prefix@file"
+      - "traefik.http.routers.tasks.priority=1"
       # Health check — public, no auth
       - "traefik.http.routers.tasks-public.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api/health`)"
       - "traefik.http.routers.tasks-public.entrypoints=websecure"
       - "traefik.http.routers.tasks-public.tls.certresolver=letsencrypt"
       - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
-      - "traefik.http.routers.tasks-public.priority=10"
+      - "traefik.http.routers.tasks-public.priority=100"
 
   postgres:
     image: postgres:18

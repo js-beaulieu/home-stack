@@ -2,6 +2,12 @@ entryPoints:
   web:
     address: ":80"
 
+experimental:
+  plugins:
+    jwt:
+      moduleName: github.com/agilezebra/jwt-middleware
+      version: v1.4.1
+
 providers:
   docker:
     exposedByDefault: false

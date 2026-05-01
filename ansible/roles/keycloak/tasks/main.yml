@@ -113,3 +113,16 @@
     edit_username_allowed: false
     state: present
   no_log: true
+
+- name: Ensure home-stack realm client scopes stay aligned with gateway token claims
+  community.general.keycloak_clientscope_type:
+    auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+    auth_realm: "{{ keycloak_admin_realm }}"
+    auth_client_id: admin-cli
+    auth_username: "{{ keycloak_admin_username }}"
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_app_realm }}"
+    default_clientscopes: "{{ keycloak_default_client_scopes }}"
+    optional_clientscopes: "{{ keycloak_optional_client_scopes }}"
+  no_log: true

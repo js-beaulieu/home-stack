@@ -5,3 +5,9 @@ keycloak_service_name: keycloak
 keycloak_full_admin_realm_role: admin
 keycloak_app_realm: home-stack
 keycloak_app_realm_display_name: home-stack
+keycloak_default_client_scopes:
+  - basic
+  - profile
+  - email
+  - roles
+keycloak_optional_client_scopes: []

@@ -94,6 +94,14 @@ task dev:stop
 
 After local bring-up, the shared Ansible flow now ensures a minimal `home-stack` realm in Keycloak. The first test user is still manual in this stage: sign in to the restricted admin UI at `http://auth.localhost/admin/` with the local admin credentials from [ansible/local.yml](/home/js-beaulieu/Projects/home-stack/ansible/local.yml), create a user in the `home-stack` realm, then verify browser login and account-console access through `http://auth.localhost/realms/home-stack/account/`.
 
+The realm provisioning also pins the default Keycloak OIDC client-scope set that API-facing tokens depend on. The gateway header contract intentionally relies on standard claims only:
+
+- `sub` for `X-User-ID`
+- `email` for `X-User-Email`
+- `name` for `X-User-Name`
+
+The `profile` and `email` scopes stay in the realm's default scope set so access tokens continue to carry `name` and `email` without custom claim names or per-client mappers.
+
 ## Manual Pre-Deploy Steps
 
 These are the minimum manual steps before the first real deployment to a new VPS. The intended default is to let GitHub Actions perform the first provisioning run.

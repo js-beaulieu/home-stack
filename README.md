@@ -102,6 +102,21 @@ The realm provisioning also pins the default Keycloak OIDC client-scope set that
 
 The `profile` and `email` scopes stay in the realm's default scope set so access tokens continue to carry `name` and `email` without custom claim names or per-client mappers.
 
+Anonymous dynamic client registration is now provisioned for the `home-stack` realm with a narrow allowlist:
+
+- redirect URI hosts are limited to `localhost`, `claude.ai`, and `claude.com`
+- browser origins are limited to `https://claude.ai` and `https://claude.com`
+
+The local DCR + PKCE smoke test is repo-owned:
+
+```sh
+KEYCLOAK_TEST_USERNAME=stage7-user \
+KEYCLOAK_TEST_PASSWORD='<local-user-password>' \
+uv run --frozen --no-dev python scripts/keycloak_dcr_smoke_test.py
+```
+
+The script verifies discovery on `auth.localhost`, anonymously registers a public OIDC client, completes a PKCE login through Keycloak, and then calls the protected `tasks-api` route through Traefik with the resulting token. For the browser-form portion of the local HTTP flow, it automatically talks to the Keycloak container's direct Docker IP so the local cookie path stays usable without adding TLS to the local overlay.
+
 ## Manual Pre-Deploy Steps
 
 These are the minimum manual steps before the first real deployment to a new VPS. The intended default is to let GitHub Actions perform the first provisioning run.

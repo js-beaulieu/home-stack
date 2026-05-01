@@ -11,3 +11,24 @@ keycloak_default_client_scopes:
   - email
   - roles
 keycloak_optional_client_scopes: []
+keycloak_client_registration_policy_provider_type: org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy
+keycloak_dcr_policy_components:
+  - name: Trusted Hosts
+    provider_id: trusted-hosts
+    sub_type: anonymous
+    config:
+      trusted-hosts:
+        - localhost
+        - claude.ai
+        - claude.com
+      host-sending-registration-request-must-match:
+        - "false"
+      client-uris-must-match:
+        - "true"
+  - name: Allowed Registration Web Origins
+    provider_id: registration-web-origins
+    sub_type: anonymous
+    config:
+      web-origins:
+        - https://claude.ai
+        - https://claude.com

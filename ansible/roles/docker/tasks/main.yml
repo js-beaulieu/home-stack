@@ -30,6 +30,7 @@
     owner: "{{ deploy_user }}"
     group: "{{ deploy_user }}"
     mode: "0600"
+  when: ci_ssh_public_key | length > 0
 
 - name: Ensure Docker apt keyring directory exists
   ansible.builtin.file:

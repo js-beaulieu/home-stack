@@ -2,11 +2,16 @@ version: "3"
 
 vars:
   ANSIBLE_DIR: ansible
+  TERRAFORM_DIR: terraform
+  LOCAL_ENV_FILE: .generated/local/home-stack.env
+  PROD_ENV_FILE: .generated/prod/home-stack.env
+  COMPOSE_ENV_ARG: --env-file .generated/local/home-stack.env
+  COMPOSE_HOME_STACK_ENV_FILE: ../.generated/local/home-stack.env
   YAML_FILES: >-
     .github/workflows
     ansible
-    docker-compose.yml
-    docker-compose.local.yml
+    docker
+    secrets
     traefik
     Taskfile.yml
     .yamllint.yml
@@ -31,52 +36,191 @@ tasks:
       - uv sync --frozen --no-dev
 
   dev:
-    desc: Start the local development stack and follow logs
+    desc: Alias for local development loop
     deps:
-      - dev:start
-      - dev:logs
+      - local:up
+      - local:provision
+      - local:verify
+      - local:logs
 
   dev:start:
-    desc: Start the local HTTP stack and run local provisioning
-    cmds:
-      - uv run --frozen --no-dev ansible-playbook --inventory localhost, ansible/local.yml
+    desc: Alias for local:up + local:provision
+    deps:
+      - local:up
+      - local:provision
 
   dev:logs:
-    desc: Follow local development stack logs
-    cmds:
-      - docker compose -f docker-compose.yml -f docker-compose.local.yml logs -f
+    desc: Alias for local:logs
+    deps:
+      - local:logs
 
   dev:stop:
+    desc: Alias for local:down
+    deps:
+      - local:down
+
+  local:env:
+    desc: Render the local runtime env from OpenTofu-owned inputs and generated secrets
+    cmds:
+      - mkdir -p .generated/local
+      - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve
+        -var-file=envs/local.tfvars
+        -target=random_password.pg_keycloak_password
+        -target=random_password.oauth2_proxy_client_secret
+        -target=random_password.oauth2_proxy_cookie_secret
+        -target=random_password.local_smoke_user_password
+        -target=local_sensitive_file.runtime_env
+
+  local:up:
+    desc: Generate local env and start the local stack
+    deps:
+      - local:env
+    cmds:
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d --remove-orphans traefik tasks-api postgres redis watchtower
+
+  local:wait:
+    desc: Wait for local Postgres bootstrap prerequisites
+    deps:
+      - local:up
+    cmds:
+      - |
+        until docker inspect home-stack-postgres-1 2>/dev/null \
+          | jq -r '.[0].State.Health.Status' | grep -qx healthy; do
+          sleep 2
+        done
+
+  local:provision:
+    desc: Apply OpenTofu provisioning against the running local stack
+    deps:
+      - local:wait
+    cmds:
+      - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
+      - |
+        pg_ip=$(docker inspect home-stack-postgres-1 \
+          | jq -r '.[0].NetworkSettings.Networks["home-stack_internal"].IPAddress')
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve \
+          -var-file=envs/local.tfvars \
+          -var "postgres_host=$pg_ip" \
+          -target=postgresql_role.keycloak \
+          -target=postgresql_database.keycloak
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d keycloak
+      - |
+        kc_ip=$(docker inspect home-stack-keycloak-1 \
+          | jq -r '.[0].NetworkSettings.Networks["home-stack_public"].IPAddress')
+        for i in $(seq 1 60); do
+          if curl -fsS "http://$kc_ip:8080/realms/master/.well-known/openid-configuration" >/dev/null; then
+            exit 0
+          fi
+          sleep 2
+        done
+        exit 1
+      - |
+        pg_ip=$(docker inspect home-stack-postgres-1 \
+          | jq -r '.[0].NetworkSettings.Networks["home-stack_internal"].IPAddress')
+        kc_ip=$(docker inspect home-stack-keycloak-1 \
+          | jq -r '.[0].NetworkSettings.Networks["home-stack_public"].IPAddress')
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve \
+          -var-file=envs/local.tfvars \
+          -var "postgres_host=$pg_ip" \
+          -var "keycloak_base_url_override=http://$kc_ip:8080"
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d oauth2-proxy
+
+  local:verify:
+    desc: Run the repo-owned local smoke test
+    cmds:
+      - uv run --frozen --no-dev python scripts/local_smoke_test.py
+
+  local:logs:
+    desc: Follow local development stack logs
+    cmds:
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        logs -f
+
+  local:down:
     desc: Stop the local development stack without deleting volumes
     cmds:
-      - docker compose -f docker-compose.yml -f docker-compose.local.yml stop
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        stop
+
+  local:reset:
+    desc: Reset local state, volumes, and generated env to zero
+    cmds:
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        down -v --remove-orphans
+      - rm -rf .generated/local
+      - rm -rf terraform/.terraform
+      - rm -f terraform/terraform.tfstate terraform/terraform.tfstate.backup
+      - rm -f terraform/.terraform.lock.hcl
 
   format:
     desc: Check YAML formatting
     cmds:
       - uv run --frozen --group dev yamllint {{.YAML_FILES}}
+      - tofu -chdir={{.TERRAFORM_DIR}} fmt -check
 
   lint:
     desc: Run Ansible and YAML lint checks
     cmds:
       - uv run --frozen --group dev yamllint {{.YAML_FILES}}
-      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/playbook.yml {{.ANSIBLE_DIR}}/local.yml
+      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/bootstrap.yml {{.ANSIBLE_DIR}}/site.yml
 
   validate:
     desc: Validate Ansible syntax and Docker Compose config
     deps:
       - ansible:syntax
+      - tofu:validate
       - compose:config
 
   ansible:syntax:
     desc: Run Ansible playbook syntax check
     dir: "{{.ANSIBLE_DIR}}"
     cmds:
-      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check playbook.yml
-      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check local.yml
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check bootstrap.yml
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check site.yml
+
+  tofu:validate:
+    desc: Validate OpenTofu configuration
+    cmds:
+      - tofu -chdir={{.TERRAFORM_DIR}} init -backend=false -input=false
+      - tofu -chdir={{.TERRAFORM_DIR}} validate
 
   compose:config:
     desc: Validate Docker Compose configuration
+    deps:
+      - local:env
     cmds:
-      - docker compose -f docker-compose.yml config --quiet
-      - docker compose -f docker-compose.yml -f docker-compose.local.yml config --quiet
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}} -f docker/docker-compose.yml config --quiet
+      - >-
+        HOME_STACK_ENV_FILE={{.COMPOSE_HOME_STACK_ENV_FILE}}
+        docker compose {{.COMPOSE_ENV_ARG}} -f docker/docker-compose.yml -f docker/docker-compose.local.yml config --quiet

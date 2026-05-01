@@ -1,0 +1,79 @@
+services:
+  traefik:
+    ports: !override
+      - "80:80"
+    volumes: !override
+      - ../traefik/local/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ../traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  tasks-api:
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.tasks.rule=Host(`tasks.localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tasks.entrypoints=web"
+      - "traefik.http.routers.tasks.middlewares=home-stack-api-jwt@file,strip-api-prefix@file"
+      - "traefik.http.routers.tasks.priority=1"
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.localhost`) && PathPrefix(`/api/health`)"
+      - "traefik.http.routers.tasks-public.entrypoints=web"
+      - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
+      - "traefik.http.routers.tasks-public.priority=100"
+      - "traefik.http.routers.private-app.rule=Host(`private.localhost`)"
+      - "traefik.http.routers.private-app.entrypoints=web"
+      - "traefik.http.routers.private-app.middlewares=oauth2-signin@file,oauth2-forward-auth@file,private-app-health-path@file"
+      - "traefik.http.routers.private-app.priority=50"
+
+  postgres:
+    environment:
+      POSTGRES_DB: ${PG_ADMIN_DATABASE}
+      POSTGRES_USER: ${PG_ADMIN_USERNAME}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD}
+
+  keycloak:
+    command: start-dev
+    environment:
+      KC_HOSTNAME: http://auth.localhost
+      KC_DB_URL_DATABASE: ${PG_KEYCLOAK_DATABASE}
+      KC_DB_USERNAME: ${PG_KEYCLOAK_USERNAME}
+      KC_DB_PASSWORD: ${PG_KEYCLOAK_PASSWORD}
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.keycloak-admin.rule=Host(`auth.localhost`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.keycloak-admin.entrypoints=web"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.priority=100"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=127.0.0.1/32,::1/128,172.16.0.0/12"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.localhost`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
+  oauth2-proxy:
+    extra_hosts:
+      - "auth.localhost:host-gateway"
+    command:
+      - --provider=oidc
+      - --oidc-issuer-url=http://auth.localhost/realms/home-stack
+      - --scope=openid profile email
+      - --http-address=0.0.0.0:4180
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      - --skip-provider-button=true
+      - --email-domain=*
+      - --upstream=http://tasks-api:8080/health
+      - --client-id=oauth2-proxy
+      - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
+      - --cookie-secure=false
+      - --redirect-url=http://private.localhost/oauth2/callback
+      - --session-store-type=redis
+      - --redis-connection-url=redis://redis:6379
+      - --pass-access-token=false
+      - --pass-authorization-header=false
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.oauth2.rule=Host(`private.localhost`) && PathPrefix(`/oauth2`)"
+      - "traefik.http.routers.oauth2.entrypoints=web"
+      - "traefik.http.services.oauth2.loadbalancer.server.port=4180"

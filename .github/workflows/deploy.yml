@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - "ansible/**"
+      - "docker/**"
+      - "terraform/**"
+      - "secrets/**"
+      - "traefik/**"
+      - "Taskfile.yml"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  provision:
+    needs: build
+    uses: ./.github/workflows/provision.yml
+
+  deploy:
+    needs: provision
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.8"
+          enable-cache: true
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.11.6
+
+      - name: Install Ansible dependencies
+        run: task deps
+
+      - name: Download runtime inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: home-stack-runtime-inputs
+          path: .
+
+      - name: Prepare SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_DEPLOY_KEY" > ~/.ssh/home-stack-ci
+          chmod 600 ~/.ssh/home-stack-ci
+        env:
+          VPS_SSH_DEPLOY_KEY: ${{ secrets.VPS_SSH_DEPLOY_KEY }}
+
+      - name: Start or reload the stack
+        working-directory: ansible
+        run: |
+          uv run --project .. --frozen --no-dev ansible-playbook \
+            site.yml \
+            --inventory inventory/prod.yml \
+            --private-key ~/.ssh/home-stack-ci \
+            -e stack_runtime_env_src="$GITHUB_WORKSPACE/.generated/prod/home-stack.env"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Open PostgreSQL tunnel
+        run: |
+          ssh -fN \
+            -i ~/.ssh/home-stack-ci \
+            -o StrictHostKeyChecking=no \
+            -L 15432:127.0.0.1:5432 \
+            deploy@${VPS_HOST}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Optionally enable B2 remote state
+        if: ${{ vars.TOFU_STATE_BUCKET != '' && vars.TOFU_STATE_ENDPOINT != '' && vars.TOFU_STATE_REGION != '' && vars.TOFU_STATE_KEY_PREFIX != '' }}
+        run: |
+          cat > terraform/backend_override.tf <<'EOF'
+          terraform {
+            backend "s3" {}
+          }
+          EOF
+          cat > terraform/backend.prod.hcl <<EOF
+          bucket                      = "${{ vars.TOFU_STATE_BUCKET }}"
+          key                         = "${{ vars.TOFU_STATE_KEY_PREFIX }}/home-stack.tfstate"
+          region                      = "${{ vars.TOFU_STATE_REGION }}"
+          endpoint                    = "${{ vars.TOFU_STATE_ENDPOINT }}"
+          access_key                  = "${{ secrets.B2_ACCESS_KEY_ID }}"
+          secret_key                  = "${{ secrets.B2_SECRET_ACCESS_KEY }}"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          force_path_style            = true
+          EOF
+
+      - name: Initialize OpenTofu with B2 remote state
+        if: ${{ vars.TOFU_STATE_BUCKET != '' && vars.TOFU_STATE_ENDPOINT != '' && vars.TOFU_STATE_REGION != '' && vars.TOFU_STATE_KEY_PREFIX != '' }}
+        run: tofu -chdir=terraform init -reconfigure -input=false -backend-config=backend.prod.hcl
+
+      - name: Initialize OpenTofu with local backend
+        if: ${{ !(vars.TOFU_STATE_BUCKET != '' && vars.TOFU_STATE_ENDPOINT != '' && vars.TOFU_STATE_REGION != '' && vars.TOFU_STATE_KEY_PREFIX != '') }}
+        run: tofu -chdir=terraform init -input=false
+
+      - name: Finish OpenTofu service provisioning
+        run: tofu -chdir=terraform apply -input=false -auto-approve -var-file=envs/prod.tfvars

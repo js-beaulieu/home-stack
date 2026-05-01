@@ -1,0 +1,10 @@
+- name: Install home-stack systemd unit
+  ansible.builtin.template:
+    src: home-stack.service.j2
+    dest: /etc/systemd/system/home-stack.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Apply home-stack

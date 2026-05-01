@@ -1,6 +1,9 @@
 deploy_user: deploy
 hostname: home-stack
 stack_compose_project_name: home-stack
+stack_runtime_env_dest: /etc/home-stack.env
+stack_runtime_env_src: ""
+ci_ssh_public_key: ""
 tasks_port: 8080
 log_level: info
 log_format: json

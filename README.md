@@ -1,301 +1,173 @@
 # home-stack
 
-Docker Compose stack for a personal VPS. Traefik is the single entry point for all services. It terminates TLS and routes traffic to containers by label.
+`home-stack` is the VPS-facing infrastructure repo for the personal stack behind Traefik.
 
-Keycloak now runs in the stack at the auth host, and `tasks-api` routes are validated at the gateway through Traefik JWT middleware. The broader auth rollout is still in progress: DCR, Google brokering, and the first real production deploy validation are not finished yet.
+## Ownership
 
-## Architecture
+- Traefik remains the public TLS and routing entry point.
+- Keycloak is the identity provider and owns login, brokering, account linking, and token issuance.
+- `oauth2-proxy` stays behind Traefik and only handles browser-session auth.
+- API and MCP routes stay on gateway JWT validation.
+- Services behind the gateway trust forwarded identity headers instead of validating tokens themselves.
+- OpenTofu owns service-level provisioning and generated runtime secrets.
+- Ansible is host-only. It syncs the repo, installs the systemd unit, writes `/etc/home-stack.env`, and applies the stack.
+- Watchtower only updates first-party images that opt in with labels.
+
+Mixed ownership is not allowed during this migration. Runtime env, Postgres objects, and Keycloak realm/client state should not be managed by both Ansible and OpenTofu.
+
+## Repo Layout
 
 ```text
-Internet (HTTPS :443)
-        |
-        v
-   [Traefik]
-        |  - TLS via Let's Encrypt
-        |  - Routes by Docker labels
-        |
-        +--> tasks-api  (tasks.DOMAIN/api) - REST + MCP
-        +--> Keycloak auth host  (auth.DOMAIN)
-        +--> future services
-
-[Keycloak]
-  - self-hosted OIDC provider
-  - will issue JWTs for Traefik validation
-  - will provide discovery, login, account console, and DCR
+home-stack/
+  docker/
+    docker-compose.yml
+    docker-compose.local.yml
+  terraform/
+    *.tf
+    envs/
+  secrets/
+    local.defaults.yaml
+    prod.sops.yaml
+  ansible/
+    bootstrap.yml
+    site.yml
+    inventory/
+  traefik/
+  Taskfile.yml
 ```
 
-The auth model remains gateway-owned: Traefik validates Keycloak JWTs and forwards identity headers to services. Individual services trust forwarded identity headers and do not validate tokens themselves.
+## Tooling
 
-## Domain Convention
+Repo-managed tooling:
 
-| Service | URL |
-| --- | --- |
-| Frontend | `appname.DOMAIN` |
-| API / MCP | `appname.DOMAIN/api` |
+- `uv` manages Python dependencies for Ansible, local scripts, and validation.
+- `task` is the command entrypoint.
 
-Only one wildcard DNS record is required for this routing model:
+External prerequisites:
 
-- `*.DOMAIN`
+- local development: Docker, Docker Compose plugin, OpenTofu
+- production workflow or manual secrets work: `sops` and `age`
 
-## Environment
-
-The deployed stack does not rely on a checked-in `.env` file. Ansible renders `/etc/home-stack.env` on the VPS from the values in `ansible/group_vars/all.yml` and the encrypted `ansible/group_vars/all.vault.yml`. The systemd unit loads that file before running `docker compose`.
-
-## Local Tooling
-
-Install the repo development tools and Git hooks with:
+Install repo-managed tooling with:
 
 ```sh
 task install
 ```
 
-Runtime Ansible dependencies are kept in the default uv dependency set. Linters and hook tooling live in the `dev` dependency group.
+## Secrets
 
-The pre-commit hook is managed by `lefthook` and runs:
+- shared local defaults live in `secrets/local.defaults.yaml`
+- machine-local overrides belong in the gitignored `secrets/local.override.yaml`
+- production operator inputs belong in `secrets/prod.sops.yaml`
+- OpenTofu-generated secrets stay in OpenTofu state when OpenTofu owns their lifecycle end to end
 
-```sh
-task check
-```
+`secrets/prod.sops.yaml` is committed as a structure template. Replace it with a real SOPS-encrypted file before production use.
 
 ## Local Development
 
-Local development uses the committed Compose overlay and plain HTTP Traefik config:
+The steady-state local loop is:
 
 ```sh
-task dev:start
+task local:up
+task local:provision
+task local:verify
+task local:logs
 ```
 
-This starts the stack with:
+What each step does:
 
-- `docker-compose.yml`
-- `docker-compose.local.yml`
-- `traefik/local/traefik.yml`
+- `task local:up` renders `.generated/local/home-stack.env` from `secrets/local.defaults.yaml`, optional `secrets/local.override.yaml`, and OpenTofu-generated secrets, then starts the stack
+- `task local:provision` waits for Postgres and Keycloak, then applies OpenTofu provisioning for Postgres roles, the Keycloak realm, clients, smoke user, DCR policy, and optional Google broker config
+- `task local:verify` runs the repo-owned smoke test
+- `task local:logs` follows logs
 
-Local routes use localhost-friendly hostnames and do not require wildcard DNS, Let's Encrypt, self-signed certificates, or `/etc/hosts` edits:
+Stop the stack without deleting volumes:
 
-- `http://tasks.localhost/api`
+```sh
+task local:down
+```
+
+Reset local state, generated env, and volumes to zero:
+
+```sh
+task local:reset
+```
+
+Local routes:
+
+- `http://tasks.localhost/api/health`
+- `http://tasks.localhost/api/users/me`
 - `http://auth.localhost/`
+- `http://auth.localhost/realms/home-stack/.well-known/openid-configuration`
+- `http://private.localhost/`
 
-Postgres is internal-only in the base stack. Local development exposes it on `127.0.0.1:5432` so a local database client can connect without routing the database through Traefik.
+The local smoke test verifies:
 
-The local overlay is for development only. Production provisioning continues to use the base Compose file and the VPS environment rendered by Ansible.
+- public health
+- Keycloak reachability
+- OIDC discovery and JWKS
+- anonymous DCR
+- one protected `tasks-api` route with a real Keycloak token
+- browser-auth redirect behavior through `oauth2-proxy`
 
-Follow local logs separately:
+## Ansible
 
-```sh
-task dev:logs
-```
+`ansible/bootstrap.yml` is host bootstrap only:
 
-Stop local containers without deleting volumes:
+- install Docker and Compose
+- create the `deploy` user
+- install the repo-owned systemd unit
+- sync the repo checkout
 
-```sh
-task dev:stop
-```
+`ansible/site.yml` is host apply only:
 
-After local bring-up, the shared Ansible flow now ensures a minimal `home-stack` realm in Keycloak. The first test user is still manual in this stage: sign in to the restricted admin UI at `http://auth.localhost/admin/` with the local admin credentials from [ansible/local.yml](/home/js-beaulieu/Projects/home-stack/ansible/local.yml), create a user in the `home-stack` realm, then verify browser login and account-console access through `http://auth.localhost/realms/home-stack/account/`.
+- sync the repo checkout
+- copy a rendered runtime env file to `/etc/home-stack.env`
+- reload the `home-stack` systemd unit
 
-The realm provisioning also pins the default Keycloak OIDC client-scope set that API-facing tokens depend on. Local `tasks-api` routes now require a valid Keycloak bearer token on every `/api/*` route except `/api/health`. The gateway header contract intentionally relies on standard claims only:
-
-- `sub` for `X-User-ID`
-- `email` for `X-User-Email`
-- `name` for `X-User-Name`
-
-The `profile` and `email` scopes stay in the realm's default scope set so access tokens continue to carry `name` and `email` without custom claim names or per-client mappers.
-
-Anonymous dynamic client registration is now provisioned for the `home-stack` realm with a narrow allowlist:
-
-- redirect URI hosts are limited to `localhost`, `claude.ai`, and `claude.com`
-- browser origins are limited to `https://claude.ai` and `https://claude.com`
-
-The local DCR + PKCE smoke test is repo-owned:
-
-```sh
-KEYCLOAK_TEST_USERNAME=stage7-user \
-KEYCLOAK_TEST_PASSWORD='<local-user-password>' \
-uv run --frozen --no-dev python scripts/keycloak_dcr_smoke_test.py
-```
-
-The script verifies discovery on `auth.localhost`, anonymously registers a public OIDC client, completes a PKCE login through Keycloak, and then calls the protected `tasks-api` route through Traefik with the resulting token. For the browser-form portion of the local HTTP flow, it automatically talks to the Keycloak container's direct Docker IP so the local cookie path stays usable without adding TLS to the local overlay.
-
-## Manual Pre-Deploy Steps
-
-These are the minimum manual steps before the first real deployment to a new VPS. The intended default is to let GitHub Actions perform the first provisioning run.
-
-### 1. Generate the CI SSH keypair and make it available on the VM bootstrap user
-
-```sh
-ssh-keygen -t ed25519 -C "github-actions@home-stack" -f ~/.ssh/home-stack-ci
-cat ~/.ssh/home-stack-ci.pub
-```
-
-Ideally, do this before provisioning the VM so the public key can be injected during VM creation through cloud-init or your provider's SSH key bootstrap mechanism.
-
-The goal is that the initial `debian` user already has this public key in `~/.ssh/authorized_keys` before GitHub Actions tries to connect. If your provider or cloud-init did not install it during VM creation, add it manually after the VM comes up.
-
-Use the public key in two places:
-
-- make sure it is present for the initial `debian` user in `~/.ssh/authorized_keys`
-- store the same public key in Ansible vault as `ci_ssh_public_key`
-
-Use the private key as the GitHub Actions secret `VPS_SSH_KEY`.
-
-The first provisioning path assumes the VM is reachable as `debian` with sudo access.
-
-### 2. Enable the provider firewall
-
-In OVH Control Panel, enable the VPS Network Firewall with these rules:
-
-- priority `0`: `Allow` `TCP` destination port `22`
-- priority `1`: `Allow` `TCP` destination port `80`
-- priority `2`: `Allow` `TCP` destination port `443`
-- final rule, e.g. priority `19`: `Deny` `IPv4`
-
-Leave source IP and source port blank, leave TCP state as `None`, and leave fragments disabled.
-
-Optionally enable OVH VPS snapshots before provisioning.
-
-### 3. Point DNS at the VPS
-
-For an IPv4-only setup, create these `A` records pointing at the VPS public IPv4:
-
-- `DOMAIN`
-- `*.DOMAIN`
-
-The `DOMAIN` record handles the base hostname itself, for example `jsbeaulieu.com`. The wildcard record handles service subdomains such as `auth.DOMAIN` and `tasks.DOMAIN`. `*.DOMAIN` does not match `DOMAIN` itself, so both records are required.
-
-It should resolve to the VPS public IP before expecting Traefik and Let's Encrypt to work.
-
-### 4. Create and fill the encrypted vault
+Manual syntax validation:
 
 ```sh
 cd ansible
-cp group_vars/all.vault.yml.example group_vars/all.vault.yml
-ansible-vault encrypt group_vars/all.vault.yml
-ansible-vault edit group_vars/all.vault.yml
+uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check bootstrap.yml
+uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check site.yml
 ```
 
-Set all required values:
+## OpenTofu
 
-```yaml
-domain: ""
-acme_email: ""
-ci_ssh_public_key: ""
-pg_admin_database: ""
-pg_admin_username: ""
-pg_admin_password: ""
-pg_keycloak_database: ""
-pg_keycloak_username: ""
-pg_keycloak_password: ""
-keycloak_admin_username: ""
-keycloak_admin_password: ""
-keycloak_admin_allowed_ips: ""
-```
+OpenTofu currently owns:
 
-If you want non-interactive local runs, create `ansible/.vault_pass` with your vault password. That file is gitignored.
+- runtime env rendering
+- generated Keycloak DB password
+- generated `oauth2-proxy` client secret
+- generated `oauth2-proxy` cookie secret
+- Keycloak Postgres role and database
+- the `home-stack` realm
+- the `home-stack-cli` and `oauth2-proxy` clients
+- anonymous DCR policy components
+- optional Google identity provider wiring
+- the local smoke user
 
-### 5. Add GitHub Actions secrets
+The Keycloak provider-backed resources are handled directly through the official `keycloak/keycloak` provider. Anonymous DCR policy components still use a small REST fallback under `terraform/scripts/upsert_keycloak_dcr.py`.
 
-Add these repository secrets:
+## Workflows
 
-- `VPS_SSH_KEY`
-- `VPS_HOST`
-- `ANSIBLE_VAULT_PASSWORD`
+- `ci.yml`: PR checks
+- `build.yml`: reusable or push-triggered repo checks
+- `provision.yml`: render production runtime inputs and OpenTofu state prerequisites
+- `deploy.yml`: orchestrate build, runtime-input preparation, stack apply, and post-start OpenTofu provisioning
 
-### 6. Push to `main` or run provisioning manually
+Production delivery is GitHub Actions first. The normal path is:
 
-Once the vault file is committed and the GitHub secrets exist:
+1. render `.generated/prod/home-stack.env` from decrypted production secrets plus OpenTofu-generated values
+2. push that env file to the VPS with `ansible/site.yml`
+3. start or reload the stack
+4. finish OpenTofu service provisioning against live Keycloak and Postgres
 
-- push a change to `main` that touches `ansible/**`, `docker-compose.yml`, or `traefik/**` to trigger `.github/workflows/provision.yml`
-- or run `.github/workflows/provision.yml` with `workflow_dispatch`
+## Validation
 
-The workflow generates `ansible/inventory.yml` dynamically from `VPS_HOST`, so no local inventory file is required.
-
-## Manual Provisioning Fallback
-
-If you need to provision from your own machine instead of GitHub Actions, run Ansible locally from `ansible/`.
-
-Interactive vault prompt:
+Run the full repo check suite with:
 
 ```sh
-cd ansible
-cp inventory.yml.example inventory.yml
-ansible-playbook playbook.yml --ask-vault-pass
-```
-
-Or non-interactive if you created `ansible/.vault_pass`:
-
-```sh
-cd ansible
-cp inventory.yml.example inventory.yml
-ansible-playbook playbook.yml --vault-password-file .vault_pass
-```
-
-In either case, edit `ansible/inventory.yml` first so `ansible_host` points at the real VPS IP.
-
-## What Provisioning Does
-
-The Ansible playbook applies three roles in order:
-
-1. `docker`
-   Creates the `deploy` user, installs the CI public key for that user, installs Docker from Docker's apt repo, installs the Compose plugin, and adds `deploy` to the `docker` group.
-2. `common`
-   Upgrades packages, applies hostname settings, enables UFW for SSH and web traffic, configures fail2ban, enables unattended upgrades, and disables SSH password authentication.
-3. `stack`
-   Syncs the repo into `/home/deploy/home-stack`, renders `/etc/home-stack.env`, installs `home-stack.service`, and enables the service.
-4. `postgres`
-   Provisions Postgres resources in the running stack, including the Keycloak database and role.
-
-## Ongoing Deployment
-
-- `.github/workflows/provision.yml` runs on changes to `ansible/**`, `docker-compose.yml`, or `traefik/**`
-- the playbook updates `/home/deploy/home-stack` on the VPS and runs `docker compose up -d --remove-orphans` through `home-stack.service` when the repo checkout, environment file, or systemd unit changes
-- Watchtower handles container image refreshes for services when upstream images are updated
-
-## Postgres Backup And Restore
-
-Use logical backups as the default Postgres backup path. They are portable across hosts and are the right fit while this stack has one small database service.
-
-Create a backup from a running local stack:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' > postgres.dump
-```
-
-Restore that dump into a running local stack:
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < postgres.dump
-```
-
-Volume-level backups of `postgres-data` are a coarse fallback for whole-stack recovery, not the primary day-to-day backup model. Stop the stack before copying the volume data directly.
-
-## Repo Structure
-
-```text
-home-stack/
-  README.md
-  docker-compose.yml
-  docker-compose.local.yml
-  keycloak/
-    README.md
-    scripts/
-  traefik/
-    traefik.yml
-    local/
-      traefik.yml
-    dynamic/
-      middlewares.yml
-  ansible/
-    playbook.yml
-    local.yml
-    inventory.yml.example
-    group_vars/
-      all.yml
-      all.vault.yml.example
-  .github/
-    workflows/
-      ci.yml
-      provision.yml
-  Taskfile.yml
-  lefthook.yml
+task check
 ```

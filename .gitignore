@@ -2,6 +2,14 @@
 .env
 .env.*
 !.env.template
+.generated/
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/backend_override.tf
+secrets/local.override.yaml
+secrets/*.dec.yaml
 
 # Claude Code — local-only settings
 .claude/

@@ -1,11 +1,25 @@
-name: CI
+name: Build
 
 on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - "ansible/**"
+      - "docker/**"
+      - "terraform/**"
+      - "secrets/**"
+      - "traefik/**"
+      - "Taskfile.yml"
+      - "pyproject.toml"
+      - "uv.lock"
   pull_request:
     branches: [main]
 
 jobs:
-  ci:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,5 +40,5 @@ jobs:
         with:
           tofu_version: 1.11.6
 
-      - name: Run checks
+      - name: Run repo checks
         run: task check

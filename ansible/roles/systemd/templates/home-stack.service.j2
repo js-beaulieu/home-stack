@@ -10,10 +10,11 @@ User={{ deploy_user }}
 Group={{ deploy_user }}
 SupplementaryGroups=docker
 WorkingDirectory=/home/{{ deploy_user }}/home-stack
+Environment=HOME_STACK_ENV_FILE=/etc/home-stack.env
 EnvironmentFile=/etc/home-stack.env
-ExecStart=/usr/bin/docker compose up -d --remove-orphans
-ExecReload=/usr/bin/docker compose up -d --wait --remove-orphans
-ExecStop=/usr/bin/docker compose down
+ExecStart=/usr/bin/docker compose -f docker/docker-compose.yml up -d --remove-orphans
+ExecReload=/usr/bin/docker compose -f docker/docker-compose.yml up -d --wait --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker/docker-compose.yml down
 
 [Install]
 WantedBy=multi-user.target

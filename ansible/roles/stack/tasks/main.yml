@@ -15,29 +15,12 @@
   become_user: "{{ deploy_user }}"
   notify: Apply home-stack
 
-- name: Render home-stack environment file
-  ansible.builtin.template:
-    src: environment.j2
-    dest: /etc/home-stack.env
+- name: Install rendered runtime env when provided
+  ansible.builtin.copy:
+    src: "{{ stack_runtime_env_src }}"
+    dest: "{{ stack_runtime_env_dest }}"
     owner: root
     group: "{{ deploy_user }}"
     mode: "0640"
+  when: stack_runtime_env_src | length > 0
   notify: Apply home-stack
-
-- name: Install home-stack systemd unit
-  ansible.builtin.template:
-    src: home-stack.service.j2
-    dest: /etc/systemd/system/home-stack.service
-    owner: root
-    group: root
-    mode: "0644"
-  notify:
-    - Reload systemd
-    - Apply home-stack
-
-- name: Enable and start home-stack
-  ansible.builtin.systemd:
-    name: home-stack
-    enabled: true
-    state: started
-    daemon_reload: true

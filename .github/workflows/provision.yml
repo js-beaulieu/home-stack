@@ -1,12 +1,7 @@
 name: Provision
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'ansible/**'
-      - 'docker-compose.yml'
-      - 'traefik/**'
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -21,44 +16,78 @@ jobs:
           version: "0.11.8"
           enable-cache: true
 
-      - name: Install Task
-        uses: go-task/setup-task@v2
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
         with:
-          version: "3.x"
+          tofu_version: 1.11.6
 
-      - name: Install Ansible dependencies
-        run: task deps
-
-      - name: Generate inventory
+      - name: Install age
         run: |
-          cat > ansible/inventory.yml <<EOF
-          all:
-            hosts:
-              vps:
-                ansible_host: ${{ secrets.VPS_HOST }}
-                ansible_user: debian
-                ansible_become: true
+          sudo apt-get update
+          sudo apt-get install -y age
+
+      - name: Install sops
+        run: |
+          curl -fsSL -o /tmp/sops.deb https://github.com/getsops/sops/releases/download/v3.12.2/sops_3.12.2_amd64.deb
+          sudo apt-get install -y /tmp/sops.deb
+
+      - name: Decrypt or stage prod secrets
+        run: |
+          mkdir -p .generated/prod
+          if grep -q '^sops:' secrets/prod.sops.yaml; then
+            printf '%s\n' "$AGE_PRIVATE_KEY" > "$RUNNER_TEMP/age.key"
+            chmod 600 "$RUNNER_TEMP/age.key"
+            export SOPS_AGE_KEY_FILE="$RUNNER_TEMP/age.key"
+            sops -d secrets/prod.sops.yaml > secrets/prod.dec.yaml
+          else
+            cp secrets/prod.sops.yaml secrets/prod.dec.yaml
+          fi
+        env:
+          AGE_PRIVATE_KEY: ${{ secrets.AGE_PRIVATE_KEY }}
+
+      - name: Optionally enable B2 remote state
+        if: ${{ vars.TOFU_STATE_BUCKET != '' && vars.TOFU_STATE_ENDPOINT != '' && vars.TOFU_STATE_REGION != '' && vars.TOFU_STATE_KEY_PREFIX != '' }}
+        run: |
+          cat > terraform/backend_override.tf <<'EOF'
+          terraform {
+            backend "s3" {}
+          }
           EOF
+          cat > terraform/backend.prod.hcl <<EOF
+          bucket                      = "${{ vars.TOFU_STATE_BUCKET }}"
+          key                         = "${{ vars.TOFU_STATE_KEY_PREFIX }}/home-stack.tfstate"
+          region                      = "${{ vars.TOFU_STATE_REGION }}"
+          endpoint                    = "${{ vars.TOFU_STATE_ENDPOINT }}"
+          access_key                  = "${{ secrets.B2_ACCESS_KEY_ID }}"
+          secret_key                  = "${{ secrets.B2_SECRET_ACCESS_KEY }}"
+          skip_credentials_validation = true
+          skip_metadata_api_check     = true
+          skip_region_validation      = true
+          force_path_style            = true
+          EOF
+          tofu -chdir=terraform init -reconfigure -input=false -backend-config=backend.prod.hcl
 
-      - name: Prepare SSH key and vault password
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/home-stack-ci
-          chmod 600 ~/.ssh/home-stack-ci
-          printf '%s\n' "$ANSIBLE_VAULT_PASSWORD" > "$RUNNER_TEMP/ansible-vault-pass"
-          chmod 600 "$RUNNER_TEMP/ansible-vault-pass"
-        env:
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      - name: Initialize local backend when remote state is disabled
+        if: ${{ !(vars.TOFU_STATE_BUCKET != '' && vars.TOFU_STATE_ENDPOINT != '' && vars.TOFU_STATE_REGION != '' && vars.TOFU_STATE_KEY_PREFIX != '') }}
+        run: tofu -chdir=terraform init -input=false
 
-      - name: Run playbook
-        working-directory: ansible
+      - name: Render prod runtime env
         run: |
-          trap 'rm -f "$RUNNER_TEMP/ansible-vault-pass"' EXIT
-          uv run --project .. --frozen --no-dev ansible-playbook \
-            playbook.yml \
-            --inventory inventory.yml \
-            --private-key ~/.ssh/home-stack-ci \
-            --vault-password-file "$RUNNER_TEMP/ansible-vault-pass"
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "false"
+          tofu -chdir=terraform apply -input=false -auto-approve \
+            -var-file=envs/prod.tfvars \
+            -target=random_password.pg_keycloak_password \
+            -target=random_password.oauth2_proxy_client_secret \
+            -target=random_password.oauth2_proxy_cookie_secret \
+            -target=random_password.local_smoke_user_password \
+            -target=local_sensitive_file.runtime_env
+
+      - name: Upload runtime inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-stack-runtime-inputs
+          path: |
+            .generated/prod/home-stack.env
+            secrets/prod.dec.yaml
+            terraform/terraform.tfstate
+            terraform/terraform.tfstate.backup
+          if-no-files-found: error

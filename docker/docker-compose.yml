@@ -1,0 +1,200 @@
+name: home-stack
+
+services:
+  traefik:
+    image: traefik:v3.6.13
+    restart: unless-stopped
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ../traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    environment:
+      DOMAIN: ${DOMAIN}
+      TRAEFIK_CERTIFICATESRESOLVERS_LETSENCRYPT_ACME_EMAIL: ${ACME_EMAIL}
+    networks:
+      - public
+
+  tasks-api:
+    image: ghcr.io/js-beaulieu/tasks-api:latest
+    restart: unless-stopped
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
+    networks:
+      - public
+      - internal
+    volumes:
+      - tasks-db:/data
+    environment:
+      DB_PATH: /data/tasks.db
+      PORT: ${TASKS_PORT}
+      LOG_FORMAT: ${LOG_FORMAT}
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_DETAILED: ${LOG_DETAILED}
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.tasks.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tasks.entrypoints=websecure"
+      - "traefik.http.routers.tasks.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks.middlewares=home-stack-api-jwt@file,strip-api-prefix@file"
+      - "traefik.http.routers.tasks.priority=1"
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.${DOMAIN}`) && PathPrefix(`/api/health`)"
+      - "traefik.http.routers.tasks-public.entrypoints=websecure"
+      - "traefik.http.routers.tasks-public.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
+      - "traefik.http.routers.tasks-public.priority=100"
+      - "traefik.http.routers.private-app.rule=Host(`private.${DOMAIN}`)"
+      - "traefik.http.routers.private-app.entrypoints=websecure"
+      - "traefik.http.routers.private-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.private-app.middlewares=oauth2-signin@file,oauth2-forward-auth@file,private-app-health-path@file"
+      - "traefik.http.routers.private-app.priority=50"
+
+  postgres:
+    image: postgres:18.1
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: ${PG_ADMIN_DATABASE}
+      POSTGRES_USER: ${PG_ADMIN_USERNAME}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    restart: unless-stopped
+    command: start
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
+    networks:
+      - public
+      - internal
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_DATABASE: ${PG_KEYCLOAK_DATABASE}
+      KC_DB_USERNAME: ${PG_KEYCLOAK_USERNAME}
+      KC_DB_PASSWORD: ${PG_KEYCLOAK_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: https://auth.${DOMAIN}
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -lc 'exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+          grep -q "\"status\": \"UP\"" <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.keycloak-admin.rule=Host(`auth.${DOMAIN}`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.keycloak-admin.entrypoints=websecure"
+      - "traefik.http.routers.keycloak-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.priority=100"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=${KEYCLOAK_ADMIN_ALLOWED_IPS}"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.${DOMAIN}`)"
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
+  redis:
+    image: redis:7.4.2-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    networks:
+      - internal
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
+    restart: unless-stopped
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
+    command:
+      - --provider=oidc
+      - --oidc-issuer-url=${KEYCLOAK_ISSUER_URL}
+      - --scope=openid profile email
+      - --http-address=0.0.0.0:4180
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      - --skip-provider-button=true
+      - --email-domain=*
+      - --upstream=http://tasks-api:8080/health
+      - --client-id=oauth2-proxy
+      - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
+      - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE}
+      - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
+      - --session-store-type=redis
+      - --redis-connection-url=redis://redis:6379
+      - --pass-access-token=false
+      - --pass-authorization-header=false
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - public
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.oauth2.rule=Host(`private.${DOMAIN}`) && PathPrefix(`/oauth2`)"
+      - "traefik.http.routers.oauth2.entrypoints=websecure"
+      - "traefik.http.routers.oauth2.tls.certresolver=letsencrypt"
+      - "traefik.http.services.oauth2.loadbalancer.server.port=4180"
+
+  watchtower:
+    image: ghcr.io/nicholas-fedor/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      WATCHTOWER_POLL_INTERVAL: "300"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_LABEL_ENABLE: "true"
+
+networks:
+  public:
+  internal:
+    internal: true  # no outbound internet; service-to-service only
+
+volumes:
+  letsencrypt:
+  postgres-data:
+  tasks-db:

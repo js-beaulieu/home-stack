@@ -2,6 +2,9 @@ entryPoints:
   web:
     address: ":80"
 
+log:
+  level: DEBUG
+
 experimental:
   plugins:
     jwt:

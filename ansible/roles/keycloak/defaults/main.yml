@@ -3,3 +3,5 @@ keycloak_scheme: http
 keycloak_http_port: 8080
 keycloak_service_name: keycloak
 keycloak_full_admin_realm_role: admin
+keycloak_app_realm: home-stack
+keycloak_app_realm_display_name: home-stack

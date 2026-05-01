@@ -93,3 +93,23 @@
         client_id: bootstrap-admin
         state: absent
       no_log: true
+
+- name: Ensure home-stack realm baseline exists
+  community.general.keycloak_realm:
+    auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+    auth_realm: "{{ keycloak_admin_realm }}"
+    auth_client_id: admin-cli
+    auth_username: "{{ keycloak_admin_username }}"
+    auth_password: "{{ keycloak_admin_password }}"
+    validate_certs: false
+    realm: "{{ keycloak_app_realm }}"
+    display_name: "{{ keycloak_app_realm_display_name }}"
+    enabled: true
+    registration_allowed: false
+    login_with_email_allowed: true
+    duplicate_emails_allowed: false
+    reset_password_allowed: true
+    remember_me: true
+    edit_username_allowed: false
+    state: present
+  no_log: true

@@ -5,6 +5,10 @@
 
   vars:
     local_compose_project_dir: "{{ playbook_dir }}/.."
+    local_compose_files:
+      - docker-compose.yml
+      - docker-compose.local.yml
+    postgres_service_name: postgres
     pg_admin_database: postgres
     pg_admin_username: home_stack_admin
     pg_admin_password: home-stack-local-postgres
@@ -15,20 +19,20 @@
     keycloak_admin_password: home-stack-local-keycloak
 
   tasks:
-    - name: Confirm local Traefik container is running
-      ansible.builtin.command:
-        cmd: docker compose -f docker-compose.yml -f docker-compose.local.yml ps --status running traefik
-        chdir: "{{ local_compose_project_dir }}"
-      changed_when: false
+    - name: Start local home-stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ local_compose_project_dir }}"
+        files: "{{ local_compose_files }}"
+        state: present
+        remove_orphans: true
       delegate_to: localhost
 
-    - name: Resolve local Postgres container address
-      ansible.builtin.command:
-        cmd: docker compose -f docker-compose.yml -f docker-compose.local.yml exec -T postgres hostname -i
-        chdir: "{{ local_compose_project_dir }}"
-      register: local_postgres_address
-      changed_when: false
-      delegate_to: localhost
+    - name: Resolve local Postgres container details
+      ansible.builtin.include_tasks: tasks/resolve_compose_service.yml
+      vars:
+        compose_service_name: "{{ postgres_service_name }}"
+        compose_service_container_name_fact: local_postgres_container_name
+        compose_service_address_fact: local_postgres_address
 
     - name: Provision local Postgres resources
       ansible.builtin.include_role:
@@ -36,4 +40,19 @@
         apply:
           delegate_to: localhost
       vars:
-        postgres_host: "{{ local_postgres_address.stdout | trim }}"
+        postgres_host: "{{ local_postgres_address }}"
+
+    - name: Wait for local home-stack after Postgres provisioning
+      community.docker.docker_compose_v2:
+        project_src: "{{ local_compose_project_dir }}"
+        files: "{{ local_compose_files }}"
+        state: present
+        remove_orphans: true
+        wait: true
+      delegate_to: localhost
+
+    - name: Provision local Keycloak admin flow
+      ansible.builtin.include_role:
+        name: keycloak
+        apply:
+          delegate_to: localhost

@@ -1,0 +1,95 @@
+- name: Resolve Keycloak container details
+  ansible.builtin.include_tasks: "{{ role_path }}/../../tasks/resolve_compose_service.yml"
+  vars:
+    compose_service_name: "{{ keycloak_service_name }}"
+    compose_service_container_name_fact: keycloak_container_name
+    compose_service_address_fact: keycloak_container_address
+
+- name: Derive Keycloak internal endpoint
+  ansible.builtin.set_fact:
+    keycloak_internal_base_url: >-
+      {{
+        keycloak_scheme
+        ~ '://'
+        ~ keycloak_container_address
+        ~ ':'
+        ~ keycloak_http_port
+      }}
+
+- name: Ensure permanent admin exists and has admin role
+  block:
+    - name: Ensure permanent admin user is present and enabled
+      community.general.keycloak_user:
+        auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+        auth_realm: "{{ keycloak_admin_realm }}"
+        auth_client_id: admin-cli
+        auth_username: "{{ keycloak_admin_username }}"
+        auth_password: "{{ keycloak_admin_password }}"
+        validate_certs: false
+        realm: "{{ keycloak_admin_realm }}"
+        username: "{{ keycloak_admin_username }}"
+        enabled: true
+        credentials:
+          - type: password
+            value: "{{ keycloak_admin_password }}"
+            temporary: false
+        state: present
+      no_log: true
+
+    - name: Ensure permanent admin has full admin realm role
+      community.general.keycloak_user_rolemapping:
+        auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+        auth_realm: "{{ keycloak_admin_realm }}"
+        auth_client_id: admin-cli
+        auth_username: "{{ keycloak_admin_username }}"
+        auth_password: "{{ keycloak_admin_password }}"
+        validate_certs: false
+        realm: "{{ keycloak_admin_realm }}"
+        target_username: "{{ keycloak_admin_username }}"
+        roles:
+          - name: "{{ keycloak_full_admin_realm_role }}"
+        state: present
+      no_log: true
+  rescue:
+    - name: Ensure permanent admin user is present and enabled through bootstrap service account
+      community.general.keycloak_user:
+        auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+        auth_realm: "{{ keycloak_admin_realm }}"
+        auth_client_id: bootstrap-admin
+        auth_client_secret: bootstrap-admin
+        validate_certs: false
+        realm: "{{ keycloak_admin_realm }}"
+        username: "{{ keycloak_admin_username }}"
+        enabled: true
+        credentials:
+          - type: password
+            value: "{{ keycloak_admin_password }}"
+            temporary: false
+        state: present
+      no_log: true
+
+    - name: Ensure permanent admin has full admin realm role through bootstrap service account
+      community.general.keycloak_user_rolemapping:
+        auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+        auth_realm: "{{ keycloak_admin_realm }}"
+        auth_client_id: bootstrap-admin
+        auth_client_secret: bootstrap-admin
+        validate_certs: false
+        realm: "{{ keycloak_admin_realm }}"
+        target_username: "{{ keycloak_admin_username }}"
+        roles:
+          - name: "{{ keycloak_full_admin_realm_role }}"
+        state: present
+      no_log: true
+
+    - name: Remove bootstrap-admin client
+      community.general.keycloak_client:
+        auth_keycloak_url: "{{ keycloak_internal_base_url }}"
+        auth_realm: "{{ keycloak_admin_realm }}"
+        auth_client_id: bootstrap-admin
+        auth_client_secret: bootstrap-admin
+        validate_certs: false
+        realm: "{{ keycloak_admin_realm }}"
+        client_id: bootstrap-admin
+        state: absent
+      no_log: true

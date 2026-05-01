@@ -98,8 +98,8 @@ Rendered into `/etc/home-stack.env` on the VPS and referenced by `docker-compose
 | `PG_KEYCLOAK_DATABASE` | Keycloak application database name, rendered from vault on the VPS |
 | `PG_KEYCLOAK_USERNAME` | Keycloak database role name, rendered from vault on the VPS |
 | `PG_KEYCLOAK_PASSWORD` | Keycloak database role password, rendered from vault on the VPS |
-| `KEYCLOAK_ADMIN_USERNAME` | Initial Keycloak bootstrap admin username, rendered from vault on the VPS |
-| `KEYCLOAK_ADMIN_PASSWORD` | Initial Keycloak bootstrap admin password, rendered from vault on the VPS |
+| `KEYCLOAK_ADMIN_USERNAME` | Permanent Keycloak admin username, rendered from vault on the VPS |
+| `KEYCLOAK_ADMIN_PASSWORD` | Permanent Keycloak admin password, rendered from vault on the VPS |
 | `KEYCLOAK_ADMIN_ALLOWED_IPS` | Comma-separated CIDR allowlist for Keycloak admin routes, rendered from vault on the VPS |
 
 ## Structure

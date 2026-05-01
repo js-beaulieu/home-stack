@@ -39,7 +39,6 @@ tasks:
   dev:start:
     desc: Start the local HTTP stack and run local provisioning
     cmds:
-      - docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --remove-orphans
       - uv run --frozen --no-dev ansible-playbook --inventory localhost, ansible/local.yml
 
   dev:logs:

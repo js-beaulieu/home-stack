@@ -7,4 +7,26 @@
     - docker
     - common
     - stack
-    - postgres
+
+  tasks:
+    - name: Resolve Postgres container details
+      ansible.builtin.include_tasks: tasks/resolve_compose_service.yml
+      vars:
+        compose_service_name: postgres
+        compose_service_container_name_fact: postgres_container_name
+        compose_service_address_fact: postgres_container_address
+
+    - name: Provision PostgreSQL resources
+      ansible.builtin.include_role:
+        name: postgres
+      vars:
+        postgres_host: "{{ postgres_container_address }}"
+
+    - name: Wait for home-stack after Postgres provisioning
+      ansible.builtin.systemd:
+        name: home-stack
+        state: reloaded
+
+    - name: Provision Keycloak admin flow
+      ansible.builtin.include_role:
+        name: keycloak

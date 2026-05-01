@@ -87,14 +87,26 @@ services:
       KC_DB_URL_DATABASE: ${PG_KEYCLOAK_DATABASE:-}
       KC_DB_USERNAME: ${PG_KEYCLOAK_USERNAME:-}
       KC_DB_PASSWORD: ${PG_KEYCLOAK_PASSWORD:-}
+      KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME: https://auth.${DOMAIN:-}
       KC_PROXY_HEADERS: xforwarded
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+      KC_BOOTSTRAP_ADMIN_CLIENT_ID: bootstrap-admin
+      KC_BOOTSTRAP_ADMIN_CLIENT_SECRET: bootstrap-admin
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          bash -lc 'exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf "GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 &&
+          grep -q "\"status\": \"UP\"" <&3'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=home-stack_public"

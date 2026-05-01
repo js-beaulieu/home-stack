@@ -53,39 +53,36 @@
     state: present
 
 - name: Allow SSH through UFW
-  ansible.builtin.command: ufw allow 22/tcp
-  register: common_ufw_allow_ssh
-  changed_when: "'Rules updated' in common_ufw_allow_ssh.stdout"
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
 
 - name: Allow HTTP through UFW
-  ansible.builtin.command: ufw allow 80/tcp
-  register: common_ufw_allow_http
-  changed_when: "'Rules updated' in common_ufw_allow_http.stdout"
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
 
 - name: Allow HTTPS through UFW
-  ansible.builtin.command: ufw allow 443/tcp
-  register: common_ufw_allow_https
-  changed_when: "'Rules updated' in common_ufw_allow_https.stdout"
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
 
 - name: Set UFW default incoming policy
-  ansible.builtin.command: ufw default deny incoming
-  register: common_ufw_default_incoming
-  changed_when: "'Default incoming policy changed' in common_ufw_default_incoming.stdout"
+  community.general.ufw:
+    direction: incoming
+    default: deny
 
 - name: Set UFW default outgoing policy
-  ansible.builtin.command: ufw default allow outgoing
-  register: common_ufw_default_outgoing
-  changed_when: "'Default outgoing policy changed' in common_ufw_default_outgoing.stdout"
+  community.general.ufw:
+    direction: outgoing
+    default: allow
 
 - name: Enable UFW
-  ansible.builtin.command: ufw status
-  register: common_ufw_status
-  changed_when: false
-
-- name: Enable UFW when inactive
-  ansible.builtin.command: ufw --force enable
-  when: "'Status: inactive' in common_ufw_status.stdout"
-  changed_when: true
+  community.general.ufw:
+    state: enabled
 
 - name: Configure fail2ban SSH jail
   ansible.builtin.copy:

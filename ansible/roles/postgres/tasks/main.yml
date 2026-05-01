@@ -1,10 +1,23 @@
+- name: Check PostgreSQL Python adapter availability for Ansible modules
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_python_interpreter | default(ansible_playbook_python) }}"
+      - -c
+      - import psycopg2
+  register: postgres_python_adapter_check
+  changed_when: false
+  failed_when: false
+  when: ansible_connection != "local"
+
 - name: Install PostgreSQL Python adapter for Ansible modules
   ansible.builtin.apt:
     name: python3-psycopg2
     state: present
     update_cache: true
     cache_valid_time: 3600
-  when: ansible_connection != "local"
+  when:
+    - ansible_connection != "local"
+    - postgres_python_adapter_check.rc != 0
 
 - name: Provision Keycloak PostgreSQL role
   community.postgresql.postgresql_user:

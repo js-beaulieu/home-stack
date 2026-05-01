@@ -1,0 +1,5 @@
+keycloak_admin_realm: master
+keycloak_scheme: http
+keycloak_http_port: 8080
+keycloak_service_name: keycloak
+keycloak_full_admin_realm_role: admin

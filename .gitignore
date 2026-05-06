@@ -20,7 +20,7 @@ secrets/*.dec.yaml
 
 # Temporary
 tmp/
-scripts/
+/scripts/
 .venv/
 .task/
 node_modules/

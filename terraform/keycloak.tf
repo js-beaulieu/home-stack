@@ -1,3 +1,10 @@
+locals {
+  keycloak_admin_username = "admin"
+
+  dcr_trusted_hosts = ["localhost", "claude.ai", "claude.com"]
+  dcr_web_origins   = ["https://claude.ai", "https://claude.com"]
+}
+
 resource "keycloak_realm" "home_stack" {
   realm                          = "home-stack"
   display_name                   = "home-stack"
@@ -12,6 +19,10 @@ resource "keycloak_realm" "home_stack" {
   first_broker_login_flow        = "first broker login"
   default_default_client_scopes  = ["basic", "profile", "email", "roles"]
   default_optional_client_scopes = []
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "keycloak_openid_client" "home_stack_cli" {
@@ -39,6 +50,10 @@ resource "keycloak_openid_client" "oauth2_proxy" {
   valid_redirect_uris          = [local.oauth2_proxy_redirect_url]
   web_origins                  = [local.secrets.domain == "localhost" ? "http://private.localhost" : "https://private.${local.secrets.domain}"]
   base_url                     = local.secrets.domain == "localhost" ? "http://private.localhost" : "https://private.${local.secrets.domain}"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "keycloak_user" "local_smoke_user" {
@@ -77,8 +92,8 @@ resource "terraform_data" "keycloak_dcr" {
     sha256(jsonencode({
       client_registration_policy_provider_type = "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy"
       realm                                    = keycloak_realm.home_stack.realm
-      trusted_hosts                            = ["localhost", "claude.ai", "claude.com"]
-      web_origins                              = ["https://claude.ai", "https://claude.com"]
+      trusted_hosts                            = local.dcr_trusted_hosts
+      web_origins                              = local.dcr_web_origins
     }))
   ]
 
@@ -87,8 +102,10 @@ resource "terraform_data" "keycloak_dcr" {
       python3 scripts/upsert_keycloak_dcr.py \
         --base-url '${local.keycloak_base_url}' \
         --realm '${keycloak_realm.home_stack.realm}' \
-        --admin-username '${local.secrets.keycloak_admin_username}' \
-        --admin-password '${local.secrets.keycloak_admin_password}'
+        --admin-username '${local.keycloak_admin_username}' \
+        --admin-password '${local.secrets.keycloak_admin_password}' \
+        --trusted-hosts '${jsonencode(local.dcr_trusted_hosts)}' \
+        --web-origins '${jsonencode(local.dcr_web_origins)}'
     EOT
   }
 

@@ -23,7 +23,7 @@ terraform {
 
 provider "keycloak" {
   client_id = "admin-cli"
-  username  = local.secrets.keycloak_admin_username
+  username  = local.keycloak_admin_username
   password  = local.secrets.keycloak_admin_password
   realm     = "master"
   url       = local.keycloak_base_url
@@ -32,8 +32,8 @@ provider "keycloak" {
 provider "postgresql" {
   host            = var.postgres_host
   port            = var.postgres_port
-  database        = local.secrets.pg_admin_database
-  username        = local.secrets.pg_admin_username
+  database        = local.pg_admin_database
+  username        = local.pg_admin_username
   password        = local.secrets.pg_admin_password
   sslmode         = "disable"
   connect_timeout = 15

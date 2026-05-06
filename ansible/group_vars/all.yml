@@ -1,0 +1,7 @@
+deploy_user: deploy
+hostname: home-stack
+stack_compose_project_name: home-stack
+stack_runtime_env_dest: /etc/home-stack.env
+stack_runtime_env_src: ""
+ci_ssh_public_key: ""
+stack_repo_url: https://github.com/js-beaulieu/home-stack.git

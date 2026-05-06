@@ -1,0 +1,271 @@
+version: "3"
+
+vars:
+  ANSIBLE_DIR: ansible
+  TERRAFORM_DIR: terraform
+  LOCAL_ENV_FILE: .generated/local/home-stack.env
+  PROD_ENV_FILE: .generated/prod/home-stack.env
+  COMPOSE_ENV_ARG: --env-file .generated/local/home-stack.env
+  YAML_FILES: >-
+    .github/workflows
+    ansible
+    docker
+    secrets
+    traefik
+    Taskfile.yml
+    .yamllint.yml
+
+env:
+  HOME_STACK_ENV_FILE: "{{.TASKFILE_DIR}}/.generated/local/home-stack.env"
+
+tasks:
+  # ---------------------------------------------------------------------------
+  # Development
+  # ---------------------------------------------------------------------------
+
+  install:
+    desc: Install project tooling and Git hooks
+    cmds:
+      - uv sync --frozen --group dev
+      - uv run --frozen --group dev lefthook install
+
+  deps:
+    desc: Install Python dependencies for Ansible
+    cmds:
+      - uv sync --frozen --no-dev
+
+  dev:
+    desc: Bootstrap local stack, run provisioning, verify, follow logs
+    cmds:
+      - task: local:bootstrap
+      - task: local:provision
+      - task: local:up
+      - task: local:verify
+      - task: local:logs
+
+  dev:start:
+    desc: Bootstrap local stack and run provisioning
+    cmds:
+      - task: local:bootstrap
+      - task: local:provision
+      - task: local:up
+
+  dev:logs:
+    desc: Follow local development stack logs
+    cmds:
+      - task: local:logs
+
+  dev:stop:
+    desc: Stop the local development stack without deleting volumes
+    cmds:
+      - task: local:down
+
+  # ---------------------------------------------------------------------------
+  # Local environment
+  # ---------------------------------------------------------------------------
+
+  local:env:
+    desc: Render the local runtime env from OpenTofu inputs and generated secrets
+    cmds:
+      - mkdir -p .generated/local
+      - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve
+        -var-file=envs/local.tfvars
+        -target=random_password.pg_keycloak_password
+        -target=random_password.oauth2_proxy_client_secret
+        -target=random_password.oauth2_proxy_cookie_secret
+        -target=random_password.local_smoke_user_password
+        -target=local_sensitive_file.runtime_env
+
+  local:bootstrap:
+    desc: Generate runtime env and start Postgres, Keycloak, and Traefik (prerequisites for provisioning)
+    cmds:
+      - task: local:env
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d --wait postgres
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d --wait keycloak traefik
+
+  local:up:
+    desc: Start all local stack services
+    cmds:
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        up -d --wait --remove-orphans
+
+  local:provision:
+    desc: Apply full OpenTofu provisioning against the running local stack
+    cmds:
+      - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
+      # Import pre-existing Postgres resources created by the init script.
+      # These are no-ops if already in state.
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/local.tfvars
+        postgresql_role.keycloak keycloak 2>/dev/null || true
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/local.tfvars
+        postgresql_database.keycloak keycloak 2>/dev/null || true
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve
+        -var-file=envs/local.tfvars
+
+  local:verify:
+    desc: Run the local smoke test
+    cmds:
+      - uv run --frozen --no-dev python terraform/scripts/local_smoke_test.py
+
+  local:logs:
+    desc: Follow local development stack logs
+    cmds:
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        logs -f
+
+  local:down:
+    desc: Stop the local development stack without deleting volumes
+    cmds:
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        stop
+
+  local:reset:
+    desc: Reset local state, volumes, and generated env to zero
+    cmds:
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}}
+        -f docker/docker-compose.yml
+        -f docker/docker-compose.local.yml
+        down -v --remove-orphans
+      - rm -rf .generated/local
+      - rm -rf terraform/.terraform
+      - rm -f terraform/terraform.tfstate terraform/terraform.tfstate.backup
+      - rm -f terraform/.terraform.lock.hcl
+
+  # ---------------------------------------------------------------------------
+  # Production operations (operator-run; CI uses the workflows directly)
+  # ---------------------------------------------------------------------------
+
+  bootstrap:
+    desc: Run the one-time bootstrap playbook against the production VPS
+    cmds:
+      - >-
+        uv run --frozen --no-dev ansible-playbook
+        {{.ANSIBLE_DIR}}/bootstrap.yml
+        --inventory {{.ANSIBLE_DIR}}/inventory/prod.yml
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "false"
+
+  provision:
+    desc: "Decrypt prod secrets, run tofu apply against prod (requires: SOPS_AGE_KEY_FILE set, SSH tunnel on port 15432 to VPS postgres)"
+    cmds:
+      - mkdir -p .generated/prod
+      - sops -d secrets/prod.sops.yaml > secrets/prod.dec.yaml
+      - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
+      # Import pre-existing Postgres resources created by the init script.
+      # These are no-ops if already in state.
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/prod.tfvars
+        postgresql_role.keycloak keycloak 2>/dev/null || true
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/prod.tfvars
+        postgresql_database.keycloak keycloak 2>/dev/null || true
+      - >-
+        tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve
+        -var-file=envs/prod.tfvars
+
+  deploy:
+    desc: Run the site playbook against the production VPS
+    cmds:
+      - >-
+        uv run --frozen --no-dev ansible-playbook
+        {{.ANSIBLE_DIR}}/site.yml
+        --inventory {{.ANSIBLE_DIR}}/inventory/prod.yml
+        -e stack_runtime_env_src="$(pwd)/.generated/prod/home-stack.env"
+    env:
+      ANSIBLE_HOST_KEY_CHECKING: "false"
+
+  rotate:
+    desc: Rotate all generated secrets and redeploy
+    cmds:
+      - task: provision
+      - task: deploy
+
+  # ---------------------------------------------------------------------------
+  # Secrets management
+  # ---------------------------------------------------------------------------
+
+  secrets:edit:prod:
+    desc: Open prod.sops.yaml in the SOPS editor
+    cmds:
+      - sops secrets/prod.sops.yaml
+
+  secrets:edit:local:
+    desc: Open local.defaults.yaml in $EDITOR
+    cmds:
+      - $EDITOR secrets/local.defaults.yaml
+
+  # ---------------------------------------------------------------------------
+  # Checks
+  # ---------------------------------------------------------------------------
+
+  check:
+    desc: format + lint + validate (pre-commit sanity check)
+    deps:
+      - format
+      - lint
+      - validate
+
+  format:
+    desc: Check YAML and Terraform formatting
+    cmds:
+      - uv run --frozen --group dev yamllint {{.YAML_FILES}}
+      - tofu -chdir={{.TERRAFORM_DIR}} fmt -check
+
+  lint:
+    desc: Run Ansible and YAML lint checks
+    cmds:
+      - uv run --frozen --group dev yamllint {{.YAML_FILES}}
+      - uv run --frozen --group dev ansible-lint {{.ANSIBLE_DIR}}/bootstrap.yml {{.ANSIBLE_DIR}}/site.yml
+
+  validate:
+    desc: Validate Ansible syntax, Terraform config, and Docker Compose
+    deps:
+      - validate:ansible
+      - validate:tofu
+      - validate:compose
+
+  validate:ansible:
+    desc: Run Ansible playbook syntax check
+    dir: "{{.ANSIBLE_DIR}}"
+    cmds:
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check bootstrap.yml
+      - uv run --project .. --frozen --no-dev ansible-playbook --inventory localhost, --syntax-check site.yml
+
+  validate:tofu:
+    desc: Validate OpenTofu configuration
+    cmds:
+      - tofu -chdir={{.TERRAFORM_DIR}} init -backend=false -input=false
+      - tofu -chdir={{.TERRAFORM_DIR}} validate
+
+  validate:compose:
+    desc: Validate Docker Compose configuration
+    deps:
+      - local:env
+    cmds:
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}} -f docker/docker-compose.yml config --quiet
+      - >-
+        docker compose {{.COMPOSE_ENV_ARG}} -f docker/docker-compose.yml -f docker/docker-compose.local.yml config --quiet

@@ -1,0 +1,36 @@
+# Bootstrap playbook — ONE-TIME, MANUAL ONLY
+#
+# When to run:
+#   Once per new VPS, before any CI pipeline runs. Never run by CI.
+#
+# Prerequisites:
+#   - VPS has a 'debian' user with passwordless sudo and your SSH key authorized
+#   - ansible/inventory/prod.yml is populated with the VPS IP
+#   - You have your SSH private key available
+#
+# What this does:
+#   - Installs Docker Engine and Docker Compose plugin
+#   - Creates the deploy user, adds it to the docker group, installs the CI SSH public key
+#   - Applies host-level hardening (UFW, fail2ban, unattended-upgrades, SSH key-only auth)
+#   - Clones the home-stack repository to /home/deploy/home-stack
+#   - Installs the home-stack systemd unit (does NOT start the stack)
+#
+# What this does NOT do:
+#   - Does not start the Compose stack
+#   - Does not provision Keycloak, PostgreSQL, or any service APIs
+#   - Does not write the runtime .env file
+#
+# What to run next:
+#   Push to main — CI will run provision.yml (writes .env) then site.yml (starts the stack).
+#   Or run manually: task provision && task deploy
+#
+- name: Bootstrap home-stack VPS
+  hosts: all
+  gather_facts: true
+  become: true
+
+  roles:
+    - docker
+    - common
+    - stack
+    - systemd

@@ -1,0 +1,6 @@
+all:
+  hosts:
+    vps:
+      ansible_host: "{{ lookup('env', 'VPS_HOST') }}"
+      ansible_user: debian
+      ansible_become: true

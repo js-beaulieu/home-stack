@@ -1,0 +1,47 @@
+services:
+  traefik:
+    ports: !override
+      - "80:80"
+    volumes: !override
+      - ../traefik/local/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ../traefik/dynamic:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  tasks-api:
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.tasks.rule=Host(`tasks.localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tasks.entrypoints=web"
+      - "traefik.http.routers.tasks.middlewares=home-stack-api-jwt@file,strip-api-prefix@file"
+      - "traefik.http.routers.tasks.priority=1"
+      - "traefik.http.routers.tasks-public.rule=Host(`tasks.localhost`) && PathPrefix(`/api/health`)"
+      - "traefik.http.routers.tasks-public.entrypoints=web"
+      - "traefik.http.routers.tasks-public.middlewares=strip-api-prefix@file"
+      - "traefik.http.routers.tasks-public.priority=100"
+
+  keycloak:
+    # start-dev disables TLS strictness and hostname enforcement for local use
+    command: start-dev
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.keycloak-admin.rule=Host(`auth.localhost`) && PathPrefix(`/admin`)"
+      - "traefik.http.routers.keycloak-admin.entrypoints=web"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.priority=100"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=127.0.0.1/32,::1/128,172.16.0.0/12"
+      - "traefik.http.routers.keycloak.rule=Host(`auth.localhost`)"
+      - "traefik.http.routers.keycloak.entrypoints=web"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
+  oauth2-proxy:
+    # auth.localhost is served by Traefik on the Docker host; route there via host-gateway
+    extra_hosts:
+      - "auth.localhost:host-gateway"
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.private-app.rule=Host(`private.localhost`)"
+      - "traefik.http.routers.private-app.entrypoints=web"
+      - "traefik.http.services.private-app.loadbalancer.server.port=4180"

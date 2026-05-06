@@ -1,0 +1,26 @@
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Clone or update home-stack repository
+  ansible.builtin.git:
+    repo: "{{ stack_repo_url }}"
+    dest: "/home/{{ deploy_user }}/home-stack"
+    version: main
+    update: true
+  become: true
+  become_user: "{{ deploy_user }}"
+  notify: Apply home-stack
+
+- name: Install rendered runtime env when provided
+  ansible.builtin.copy:
+    src: "{{ stack_runtime_env_src }}"
+    dest: "{{ stack_runtime_env_dest }}"
+    owner: root
+    group: "{{ deploy_user }}"
+    mode: "0640"
+  when: stack_runtime_env_src | length > 0
+  notify: Apply home-stack

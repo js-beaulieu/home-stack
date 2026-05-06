@@ -1,0 +1,16 @@
+- name: Apply home-stack site state
+  hosts: all
+  gather_facts: true
+  become: true
+
+  roles:
+    - stack
+    - systemd
+
+  tasks:
+    - name: Enable and start home-stack
+      ansible.builtin.systemd:
+        name: home-stack
+        enabled: true
+        state: started
+        daemon_reload: true

@@ -1,0 +1,22 @@
+http:
+  middlewares:
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - /api
+
+    home-stack-api-jwt:
+      plugin:
+        jwt:
+          issuers:
+            - issuer: '{{ env "KEYCLOAK_ISSUER_URL" }}'
+              jwks: http://keycloak:8080/realms/home-stack/protocol/openid-connect/certs
+          delayPrefetch: 30s
+          validMethods:
+            - RS256
+          headerMap:
+            X-User-ID: sub
+            X-User-Email: email
+            X-User-Name: name
+          removeMissingHeaders: true
+          forwardToken: false

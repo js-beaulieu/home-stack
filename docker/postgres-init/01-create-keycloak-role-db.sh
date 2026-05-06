@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+ROLE="${PG_KEYCLOAK_USERNAME:-keycloak}"
+DB="${PG_KEYCLOAK_DATABASE:-keycloak}"
+PASS="${PG_KEYCLOAK_PASSWORD:-}"
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+DO \$\$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$ROLE') THEN
+    CREATE ROLE "$ROLE" WITH LOGIN PASSWORD '$PASS';
+  ELSE
+    ALTER ROLE "$ROLE" WITH LOGIN PASSWORD '$PASS';
+  END IF;
+END \$\$;
+
+SELECT 'CREATE DATABASE "$DB" OWNER "$ROLE"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB')\gexec
+EOSQL

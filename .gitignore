@@ -1,0 +1,29 @@
+# Environment — keep secrets off disk
+.env
+.env.*
+.generated/
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/backend_override.tf
+secrets/local.override.yaml
+secrets/*.dec.yaml
+
+# Claude Code — local-only settings
+.claude/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Temporary
+tmp/
+scripts/
+.venv/
+.task/
+node_modules/
+
+# Docker Compose overrides
+docker-compose.override.yml

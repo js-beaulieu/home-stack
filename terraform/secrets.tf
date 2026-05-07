@@ -29,7 +29,13 @@ locals {
     try(local.secrets.google_identity_provider, {})
   )
 
-  keycloak_base_url = (
+  # Direct URL for the Terraform Keycloak provider — always the tunnel address,
+  # bypasses Traefik and its admin IP allowlist.
+  keycloak_provider_url = "http://127.0.0.1:${var.keycloak_port}"
+
+  # Public-facing URL for runtime config (KEYCLOAK_HOSTNAME, KEYCLOAK_ISSUER_URL).
+  # Used by Keycloak itself and oauth2-proxy — never for the Terraform provider.
+  keycloak_public_url = (
     local.secrets.domain == "localhost"
     ? "http://auth.localhost"
     : "https://auth.${local.secrets.domain}"

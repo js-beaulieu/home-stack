@@ -6,8 +6,8 @@ locals {
       KEYCLOAK_ADMIN_ALLOWED_IPS = local.secrets.keycloak_admin_allowed_ips
       KEYCLOAK_ADMIN_PASSWORD    = local.secrets.keycloak_admin_password
       KEYCLOAK_ADMIN_USERNAME    = local.keycloak_admin_username
-      KEYCLOAK_HOSTNAME          = local.keycloak_base_url
-      KEYCLOAK_ISSUER_URL        = "${local.keycloak_base_url}/realms/home-stack"
+      KEYCLOAK_HOSTNAME          = local.keycloak_public_url
+      KEYCLOAK_ISSUER_URL        = "${local.keycloak_public_url}/realms/home-stack"
       LOG_DETAILED               = local.log_detailed
       LOG_FORMAT                 = local.log_format
       LOG_LEVEL                  = local.log_level

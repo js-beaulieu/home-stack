@@ -100,7 +100,7 @@ resource "terraform_data" "keycloak_dcr" {
   provisioner "local-exec" {
     command = <<-EOT
       python3 scripts/upsert_keycloak_dcr.py \
-        --base-url '${local.keycloak_base_url}' \
+        --base-url '${local.keycloak_provider_url}' \
         --realm '${keycloak_realm.home_stack.realm}' \
         --admin-username '${local.keycloak_admin_username}' \
         --admin-password '${local.secrets.keycloak_admin_password}' \

@@ -26,7 +26,7 @@ provider "keycloak" {
   username  = local.keycloak_admin_username
   password  = local.secrets.keycloak_admin_password
   realm     = "master"
-  url       = local.keycloak_base_url
+  url       = local.keycloak_provider_url
 }
 
 provider "postgresql" {

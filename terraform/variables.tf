@@ -22,3 +22,8 @@ variable "postgres_host" {
 variable "postgres_port" {
   type = number
 }
+
+variable "keycloak_port" {
+  type        = number
+  description = "Host port for the Keycloak admin API tunnel (18080 for prod, 8080 for local)"
+}

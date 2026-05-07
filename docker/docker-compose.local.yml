@@ -23,6 +23,8 @@ services:
   keycloak:
     # start-dev disables TLS strictness and hostname enforcement for local use
     command: start-dev
+    ports:
+      - "127.0.0.1:8080:8080"
     labels: !override
       - "traefik.enable=true"
       - "traefik.docker.network=home-stack_public"

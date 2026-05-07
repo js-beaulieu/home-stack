@@ -80,6 +80,50 @@ jobs:
           EOF
           tofu -chdir=terraform init -reconfigure -input=false -backend-config=backend.prod.hcl
 
+      - name: Generate env file
+        run: |
+          tofu -chdir=terraform apply -input=false -auto-approve \
+            -var-file=envs/prod.tfvars \
+            -target=random_password.pg_keycloak_password \
+            -target=random_password.oauth2_proxy_client_secret \
+            -target=random_password.oauth2_proxy_cookie_secret \
+            -target=local_sensitive_file.runtime_env
+
+      - name: Start stack
+        run: |
+          uv run --frozen --no-dev ansible-playbook \
+            ansible/site.yml \
+            --inventory ansible/inventory/prod.yml \
+            --private-key ~/.ssh/home-stack-ci \
+            -e stack_runtime_env_src="$GITHUB_WORKSPACE/.generated/prod/home-stack.env"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Wait for PostgreSQL
+        run: |
+          echo "Waiting for PostgreSQL on 127.0.0.1:15432..."
+          for i in $(seq 1 30); do
+            if python3 -c "import socket; socket.create_connection(('127.0.0.1', 15432), timeout=2)" 2>/dev/null; then
+              echo "PostgreSQL ready after $((i * 5))s"; exit 0
+            fi
+            echo "  attempt $i/30, retrying in 5s..."; sleep 5
+          done
+          echo "PostgreSQL did not become ready in time" >&2; exit 1
+
+      - name: Wait for Keycloak
+        run: |
+          DOMAIN=$(python3 -c "import yaml; print(yaml.safe_load(open('secrets/prod.dec.yaml'))['domain'])")
+          KEYCLOAK_URL="https://auth.${DOMAIN}/realms/master"
+          echo "Waiting for Keycloak at ${KEYCLOAK_URL}..."
+          for i in $(seq 1 60); do
+            if curl -sf --max-time 5 "${KEYCLOAK_URL}" >/dev/null 2>&1; then
+              echo "Keycloak ready after $((i * 5))s"; exit 0
+            fi
+            echo "  attempt $i/60, retrying in 5s..."; sleep 5
+          done
+          echo "Keycloak did not become ready in time" >&2; exit 1
+
       - name: Import pre-existing Postgres resources
         run: |
           tofu -chdir=terraform import -var-file=envs/prod.tfvars postgresql_role.keycloak keycloak 2>/dev/null || true

@@ -1,4 +1,4 @@
-deploy_user: deploy
+deploy_user: debian
 hostname: home-stack
 stack_compose_project_name: home-stack
 stack_runtime_env_dest: /etc/home-stack.env

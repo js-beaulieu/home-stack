@@ -75,7 +75,7 @@ tasks:
         -target=random_password.pg_keycloak_password
         -target=random_password.oauth2_proxy_client_secret
         -target=random_password.oauth2_proxy_cookie_secret
-        -target=random_password.local_smoke_user_password
+        "-target=random_password.local_smoke_user_password[0]"
         -target=local_sensitive_file.runtime_env
 
   local:bootstrap:

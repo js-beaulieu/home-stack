@@ -148,7 +148,6 @@ home-stack/
 - [ ] `keycloak_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) change it via the Keycloak admin UI at `auth.<domain>/admin`, (2) update this value, (3) `task rotate`.
 - [ ] `keycloak_admin_allowed_ips` — CIDR allowlist for `/admin`, e.g. `203.0.113.10/32`
 - [ ] `google_identity_provider.enabled` / `client_id` / `client_secret` / `hosted_domain` — set `enabled: false` to skip
-- [ ] `local_smoke_user.*` — leave all fields empty for prod
 
 **`ansible/group_vars/all.yml`** — edit and commit
 - [ ] `ci_ssh_public_key` — public half of `VPS_SSH_DEPLOY_KEY`; bootstrap installs it into `deploy@vps:~/.ssh/authorized_keys`

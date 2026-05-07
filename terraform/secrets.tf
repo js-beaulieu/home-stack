@@ -45,7 +45,11 @@ locals {
     pg_keycloak_password       = random_password.pg_keycloak_password.result
     oauth2_proxy_client_secret = random_password.oauth2_proxy_client_secret.result
     oauth2_proxy_cookie_secret = base64encode(random_password.oauth2_proxy_cookie_secret.result)
-    local_smoke_user_password  = coalesce(trimspace(local.local_smoke_user.password), random_password.local_smoke_user_password.result)
+    local_smoke_user_password = (
+      var.environment == "local"
+      ? coalesce(trimspace(local.local_smoke_user.password), random_password.local_smoke_user_password[0].result)
+      : ""
+    )
   }
 
   log_format   = try(local.secrets.log_format, "json")
@@ -69,6 +73,7 @@ resource "random_password" "oauth2_proxy_cookie_secret" {
 }
 
 resource "random_password" "local_smoke_user_password" {
+  count   = var.environment == "local" ? 1 : 0
   length  = 24
   special = false
 }

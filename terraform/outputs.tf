@@ -3,6 +3,6 @@ output "runtime_env_file" {
 }
 
 output "local_smoke_user_password" {
-  value     = local.generated_secrets.local_smoke_user_password
+  value     = var.environment == "local" ? local.generated_secrets.local_smoke_user_password : null
   sensitive = true
 }

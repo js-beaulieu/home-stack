@@ -144,11 +144,10 @@ home-stack/
 **`secrets/prod.sops.yaml`** — `task secrets:edit:prod`, then commit
 - [ ] `domain` — bare domain, e.g. `example.com`
 - [ ] `acme_email` — Let's Encrypt notification address
-- [ ] `pg_admin_password` — ⚠️ persistent: changing after first Postgres init requires a manual `ALTER ROLE`
-- [ ] `keycloak_admin_password` — ⚠️ persistent: Keycloak writes this to its DB on first boot
+- [ ] `pg_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) `docker exec -it home-stack-postgres-1 psql -U home_stack_admin -c "ALTER ROLE home_stack_admin PASSWORD 'newpassword'"` on the VPS, (2) update this value, (3) `task rotate`.
+- [ ] `keycloak_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) change it via the Keycloak admin UI at `auth.<domain>/admin`, (2) update this value, (3) `task rotate`.
 - [ ] `keycloak_admin_allowed_ips` — CIDR allowlist for `/admin`, e.g. `203.0.113.10/32`
 - [ ] `google_identity_provider.enabled` / `client_id` / `client_secret` / `hosted_domain` — set `enabled: false` to skip
-- [ ] All other fields (`tasks_port`, `log_*`, `pg_admin_*`, `pg_keycloak_*`, `keycloak_admin_username`) — defaults in `local.defaults.yaml` are a safe starting point
 - [ ] `local_smoke_user.*` — leave all fields empty for prod
 
 **`ansible/group_vars/all.yml`** — edit and commit

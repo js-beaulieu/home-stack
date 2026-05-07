@@ -1,6 +1,8 @@
 # Environment — keep secrets off disk
 .env
 .env.*
+.secrets
+.vars
 .generated/
 terraform/.terraform/
 terraform/.terraform.lock.hcl

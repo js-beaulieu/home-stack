@@ -125,7 +125,7 @@ services:
       - "traefik.http.routers.keycloak-admin.rule=Host(`auth.${DOMAIN}`) && PathPrefix(`/admin`)"
       - "traefik.http.routers.keycloak-admin.entrypoints=websecure"
       - "traefik.http.routers.keycloak-admin.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
+      - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-real-ip@file,keycloak-admin-allowlist"
       - "traefik.http.routers.keycloak-admin.priority=100"
       - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=${KEYCLOAK_ADMIN_ALLOWED_IPS}"
       - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.ipstrategy.excludedips=${TRAEFIK_TRUSTED_PROXY_IPS}"

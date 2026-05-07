@@ -72,7 +72,6 @@ tasks:
       - >-
         tofu -chdir={{.TERRAFORM_DIR}} apply -input=false -auto-approve
         -var-file=envs/local.tfvars
-        -target=random_password.keycloak_bootstrap_admin_password
         -target=random_password.pg_keycloak_password
         -target=random_password.oauth2_proxy_client_secret
         -target=random_password.oauth2_proxy_cookie_secret
@@ -107,22 +106,6 @@ tasks:
     desc: Apply full OpenTofu provisioning against the running local stack
     cmds:
       - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
-      # Bootstrap permanent Keycloak admin and import it into Tofu state.
-      # Import IDs require the UUID, so the bootstrap script emits it via --print-user-id.
-      # All three imports are no-ops if the resource is already in state.
-      - |
-        ADMIN_USER_ID=$(uv run --frozen --no-dev python terraform/scripts/bootstrap_keycloak_admin.py \
-          --base-url http://127.0.0.1:8080 \
-          --bootstrap-username temp-admin \
-          --bootstrap-password "$(tofu -chdir={{.TERRAFORM_DIR}} output -raw keycloak_bootstrap_admin_password)" \
-          --permanent-username admin \
-          --permanent-password "$(cat secrets/local.override.yaml secrets/local.defaults.yaml 2>/dev/null \
-            | awk '/^keycloak_admin_password:/{print $2; exit}')" \
-          --print-user-id)
-        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/local.tfvars \
-          keycloak_user.keycloak_admin "master/$ADMIN_USER_ID" 2>/dev/null || true
-        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/local.tfvars \
-          keycloak_user_roles.keycloak_admin "master/$ADMIN_USER_ID" 2>/dev/null || true
       # Import pre-existing Postgres resources created by the init script.
       # These are no-ops if already in state.
       - >-
@@ -186,24 +169,11 @@ tasks:
       ANSIBLE_HOST_KEY_CHECKING: "false"
 
   provision:
-    desc: "Decrypt prod secrets, run tofu apply against prod (requires: SOPS_AGE_KEY_FILE set, SSH tunnels on :15432 for postgres and :18080 for keycloak)"
+    desc: "Decrypt prod secrets, run tofu apply against prod (requires: SOPS_AGE_KEY_FILE set, SSH tunnel on port 15432 to VPS postgres)"
     cmds:
       - mkdir -p .generated/prod
       - sops -d secrets/prod.sops.yaml > secrets/prod.dec.yaml
       - tofu -chdir={{.TERRAFORM_DIR}} init -input=false
-      # Bootstrap permanent Keycloak admin and import it into Tofu state.
-      - |
-        ADMIN_USER_ID=$(uv run --frozen --no-dev python terraform/scripts/bootstrap_keycloak_admin.py \
-          --base-url http://127.0.0.1:18080 \
-          --bootstrap-username temp-admin \
-          --bootstrap-password "$(tofu -chdir={{.TERRAFORM_DIR}} output -raw keycloak_bootstrap_admin_password)" \
-          --permanent-username admin \
-          --permanent-password "$(awk '/^keycloak_admin_password:/{print $2; exit}' secrets/prod.dec.yaml)" \
-          --print-user-id)
-        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/prod.tfvars \
-          keycloak_user.keycloak_admin "master/$ADMIN_USER_ID" 2>/dev/null || true
-        tofu -chdir={{.TERRAFORM_DIR}} import -var-file=envs/prod.tfvars \
-          keycloak_user_roles.keycloak_admin "master/$ADMIN_USER_ID" 2>/dev/null || true
       # Import pre-existing Postgres resources created by the init script.
       # These are no-ops if already in state.
       - >-

@@ -1,7 +1,5 @@
 locals {
-  keycloak_admin_username           = "admin"
-  keycloak_bootstrap_admin_username = "temp-admin"
-  keycloak_master_realm_id          = "master"
+  keycloak_admin_username = "admin"
 
   dcr_trusted_hosts = ["localhost", "claude.ai", "claude.com"]
   dcr_web_origins   = ["https://claude.ai", "https://claude.com"]
@@ -87,32 +85,6 @@ resource "keycloak_oidc_google_identity_provider" "google" {
   store_token                   = true
   sync_mode                     = "IMPORT"
   trust_email                   = true
-}
-
-# The permanent admin is created out-of-band by scripts/bootstrap_keycloak_admin.py
-# (run before tofu apply) and then imported into state so Terraform owns it.
-# Import IDs: keycloak_user → master/{uuid}, keycloak_user_roles → master/{uuid}.
-data "keycloak_role" "master_admin" {
-  realm_id = local.keycloak_master_realm_id
-  name     = "admin"
-}
-
-resource "keycloak_user" "keycloak_admin" {
-  realm_id       = local.keycloak_master_realm_id
-  username       = local.keycloak_admin_username
-  enabled        = true
-  email_verified = true
-
-  initial_password {
-    value     = local.secrets.keycloak_admin_password
-    temporary = false
-  }
-}
-
-resource "keycloak_user_roles" "keycloak_admin" {
-  realm_id = local.keycloak_master_realm_id
-  user_id  = keycloak_user.keycloak_admin.id
-  role_ids = [data.keycloak_role.master_admin.id]
 }
 
 resource "terraform_data" "keycloak_dcr" {

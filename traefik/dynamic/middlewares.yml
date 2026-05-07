@@ -5,6 +5,15 @@ http:
         prefixes:
           - /api
 
+    keycloak-admin-real-ip:
+      plugin:
+        traefik-real-ip:
+          thrustLocal: true
+          thrustCloudFlare: true
+          thrustEdgeOne: false
+          logLevel: info
+          denyUntrusted: false
+
     home-stack-api-jwt:
       plugin:
         jwt:

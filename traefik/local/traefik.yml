@@ -10,6 +10,9 @@ experimental:
     jwt:
       moduleName: github.com/agilezebra/jwt-middleware
       version: v1.4.1
+    traefik-real-ip:
+      moduleName: github.com/zekihan/traefik-real-ip
+      version: v0.1.20
 
 providers:
   docker:

@@ -48,9 +48,10 @@ locals {
   )
 
   generated_secrets = {
-    pg_keycloak_password       = random_password.pg_keycloak_password.result
-    oauth2_proxy_client_secret = random_password.oauth2_proxy_client_secret.result
-    oauth2_proxy_cookie_secret = base64encode(random_password.oauth2_proxy_cookie_secret.result)
+    keycloak_bootstrap_admin_password = random_password.keycloak_bootstrap_admin_password.result
+    pg_keycloak_password              = random_password.pg_keycloak_password.result
+    oauth2_proxy_client_secret        = random_password.oauth2_proxy_client_secret.result
+    oauth2_proxy_cookie_secret        = base64encode(random_password.oauth2_proxy_cookie_secret.result)
     local_smoke_user_password = (
       var.environment == "local"
       ? coalesce(trimspace(local.local_smoke_user.password), random_password.local_smoke_user_password[0].result)
@@ -61,6 +62,11 @@ locals {
   log_format   = try(local.secrets.log_format, "json")
   log_level    = try(local.secrets.log_level, "info")
   log_detailed = try(tostring(local.secrets.log_detailed), "false")
+}
+
+resource "random_password" "keycloak_bootstrap_admin_password" {
+  length  = 32
+  special = false
 }
 
 resource "random_password" "pg_keycloak_password" {

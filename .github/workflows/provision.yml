@@ -72,6 +72,7 @@ jobs:
         run: |
           tofu -chdir=terraform apply -input=false -auto-approve \
             -var-file=envs/prod.tfvars \
+            -target=random_password.keycloak_bootstrap_admin_password \
             -target=random_password.pg_keycloak_password \
             -target=random_password.oauth2_proxy_client_secret \
             -target=random_password.oauth2_proxy_cookie_secret \
@@ -98,6 +99,23 @@ jobs:
             debian@${VPS_HOST}
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Bootstrap Keycloak permanent admin and import into Tofu state
+        run: |
+          ADMIN_USER_ID=$(uv run --frozen --no-dev python terraform/scripts/bootstrap_keycloak_admin.py \
+            --base-url http://127.0.0.1:18080 \
+            --bootstrap-username temp-admin \
+            --bootstrap-password "$(tofu -chdir=terraform output -raw keycloak_bootstrap_admin_password)" \
+            --permanent-username admin \
+            --permanent-password "$(awk '/^keycloak_admin_password:/{print $2; exit}' secrets/prod.dec.yaml)" \
+            --print-user-id)
+          existing=$(tofu -chdir=terraform state list)
+          import_if_missing() {
+            echo "$existing" | grep -qx "$1" || \
+              tofu -chdir=terraform import -var-file=envs/prod.tfvars "$1" "$2"
+          }
+          import_if_missing keycloak_user.keycloak_admin       "master/$ADMIN_USER_ID"
+          import_if_missing keycloak_user_roles.keycloak_admin "master/$ADMIN_USER_ID"
 
       - name: Import pre-existing Postgres resources
         run: |

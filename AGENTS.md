@@ -141,7 +141,10 @@ home-stack/
 
 ### Configure (all must be done before bootstrap)
 
-**`secrets/prod.sops.yaml`** — `task secrets:edit:prod`, then commit
+**`.sops.yaml`** — replace the placeholder with your age public key, then commit
+- [ ] Run `age-keygen -o ~/.config/age/home-stack.key` and copy the printed public key into `.sops.yaml`
+
+**`secrets/prod.sops.yaml`** — fill in values, then `task secrets:encrypt:prod` (first time) or `task secrets:edit:prod` (subsequent edits), then commit
 - [ ] `domain` — bare domain, e.g. `example.com`
 - [ ] `acme_email` — Let's Encrypt notification address
 - [ ] `pg_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) `docker exec -it home-stack-postgres-1 psql -U home_stack_admin -c "ALTER ROLE home_stack_admin PASSWORD 'newpassword'"` on the VPS, (2) update this value, (3) `task rotate`.

@@ -3,5 +3,5 @@ hostname: home-stack
 stack_compose_project_name: home-stack
 stack_runtime_env_dest: /etc/home-stack.env
 stack_runtime_env_src: ""
-ci_ssh_public_key: ""
+ci_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILHg5A+D/onDwNKvCOQ5UKMkCwcewFYwYTjz/ex5bUhO debian@home-stack"
 stack_repo_url: https://github.com/js-beaulieu/home-stack.git

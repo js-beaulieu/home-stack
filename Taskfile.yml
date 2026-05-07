@@ -228,10 +228,10 @@ tasks:
 
   check:
     desc: format + lint + validate (pre-commit sanity check)
-    deps:
-      - format
-      - lint
-      - validate
+    cmds:
+      - task: format
+      - task: lint
+      - task: validate
 
   format:
     desc: Check YAML and Terraform formatting
@@ -247,10 +247,10 @@ tasks:
 
   validate:
     desc: Validate Ansible syntax, Terraform config, and Docker Compose
-    deps:
-      - validate:ansible
-      - validate:tofu
-      - validate:compose
+    cmds:
+      - task: validate:ansible
+      - task: validate:tofu
+      - task: validate:compose
 
   validate:ansible:
     desc: Run Ansible playbook syntax check

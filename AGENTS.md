@@ -164,12 +164,6 @@ home-stack/
 - [ ] `B2_ACCESS_KEY_ID` — Backblaze application key ID (create a private bucket + app key via B2 console)
 - [ ] `B2_SECRET_ACCESS_KEY` — Backblaze application key secret
 
-**GitHub repo → Settings → Variables**
-- [ ] `TOFU_STATE_BUCKET` — B2 bucket name
-- [ ] `TOFU_STATE_ENDPOINT` — e.g. `https://s3.us-west-004.backblazeb2.com`
-- [ ] `TOFU_STATE_REGION` — e.g. `us-west-004`
-- [ ] `TOFU_STATE_KEY_PREFIX` — e.g. `homestack`
-
 **VPS** — via hosting panel
 - [ ] `debian` user with passwordless sudo
 - [ ] Your SSH public key in `debian@vps:~/.ssh/authorized_keys`

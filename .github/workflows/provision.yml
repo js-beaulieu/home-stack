@@ -62,24 +62,11 @@ jobs:
 
       - name: Configure B2 remote state
         run: |
-          cat > terraform/backend_override.tf <<'EOF'
-          terraform {
-            backend "s3" {}
-          }
-          EOF
-          cat > terraform/backend.prod.hcl <<EOF
-          bucket                      = "${{ vars.TOFU_STATE_BUCKET }}"
-          key                         = "${{ vars.TOFU_STATE_KEY_PREFIX }}/home-stack.tfstate"
-          region                      = "${{ vars.TOFU_STATE_REGION }}"
-          endpoint                    = "${{ vars.TOFU_STATE_ENDPOINT }}"
-          access_key                  = "${{ secrets.B2_ACCESS_KEY_ID }}"
-          secret_key                  = "${{ secrets.B2_SECRET_ACCESS_KEY }}"
-          skip_credentials_validation = true
-          skip_metadata_api_check     = true
-          skip_region_validation      = true
-          force_path_style            = true
-          EOF
-          tofu -chdir=terraform init -reconfigure -input=false -backend-config=backend.prod.hcl
+          printf 'terraform {\n  backend "s3" {}\n}\n' > terraform/backend_override.tf
+          tofu -chdir=terraform init -reconfigure -input=false -backend-config=envs/backend.prod.hcl
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.B2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.B2_SECRET_ACCESS_KEY }}
 
       - name: Generate env file
         run: |
@@ -114,10 +101,13 @@ jobs:
 
       - name: Import pre-existing Postgres resources
         run: |
-          tofu -chdir=terraform import -var-file=envs/prod.tfvars \
-            postgresql_role.keycloak keycloak 2>/dev/null || true
-          tofu -chdir=terraform import -var-file=envs/prod.tfvars \
-            postgresql_database.keycloak keycloak 2>/dev/null || true
+          existing=$(tofu -chdir=terraform state list)
+          import_if_missing() {
+            echo "$existing" | grep -qx "$1" || \
+              tofu -chdir=terraform import -var-file=envs/prod.tfvars "$1" "$2"
+          }
+          import_if_missing postgresql_role.keycloak     keycloak
+          import_if_missing postgresql_database.keycloak keycloak
 
       - name: Apply OpenTofu provisioning
         run: |

@@ -207,6 +207,11 @@ tasks:
   # Secrets management
   # ---------------------------------------------------------------------------
 
+  secrets:encrypt:prod:
+    desc: Encrypt prod.sops.yaml for the first time (fill in values first, run once only)
+    cmds:
+      - sops --encrypt --in-place secrets/prod.sops.yaml
+
   secrets:edit:prod:
     desc: Open prod.sops.yaml in the SOPS editor
     cmds:

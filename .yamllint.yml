@@ -4,6 +4,7 @@ ignore: |
   .venv/
   ansible/inventory.yml
   docker-compose.override.yml
+  secrets/prod.sops.yaml
 
 rules:
   braces:

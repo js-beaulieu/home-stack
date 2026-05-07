@@ -4,6 +4,9 @@ services:
   traefik:
     image: traefik:v3.6.13
     restart: unless-stopped
+    command:
+      - "--entryPoints.web.forwardedHeaders.trustedIPs=${TRAEFIK_TRUSTED_PROXY_IPS}"
+      - "--entryPoints.websecure.forwardedHeaders.trustedIPs=${TRAEFIK_TRUSTED_PROXY_IPS}"
     env_file:
       - ${HOME_STACK_ENV_FILE}
     ports:
@@ -125,6 +128,7 @@ services:
       - "traefik.http.routers.keycloak-admin.middlewares=keycloak-admin-allowlist"
       - "traefik.http.routers.keycloak-admin.priority=100"
       - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.sourcerange=${KEYCLOAK_ADMIN_ALLOWED_IPS}"
+      - "traefik.http.middlewares.keycloak-admin-allowlist.ipallowlist.ipstrategy.excludedips=${TRAEFIK_TRUSTED_PROXY_IPS}"
       - "traefik.http.routers.keycloak.rule=Host(`auth.${DOMAIN}`)"
       - "traefik.http.routers.keycloak.entrypoints=websecure"
       - "traefik.http.routers.keycloak.tls.certresolver=letsencrypt"

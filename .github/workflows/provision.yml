@@ -44,6 +44,7 @@ jobs:
           ssh -fN \
             -i ~/.ssh/home-stack-ci \
             -o StrictHostKeyChecking=no \
+            -o ExitOnForwardFailure=yes \
             -L 15432:127.0.0.1:5432 \
             debian@${VPS_HOST}
         env:
@@ -105,6 +106,7 @@ jobs:
           ssh -fN \
             -i ~/.ssh/home-stack-ci \
             -o StrictHostKeyChecking=no \
+            -o ExitOnForwardFailure=yes \
             -L 18080:127.0.0.1:18080 \
             debian@${VPS_HOST}
         env:

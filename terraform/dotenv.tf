@@ -23,6 +23,7 @@ locals {
       PG_KEYCLOAK_USERNAME       = local.pg_keycloak_username
       POSTGRES_PORT              = "5432"
       TASKS_PORT                 = "8080"
+      TRAEFIK_TRUSTED_PROXY_IPS  = local.traefik_trusted_proxy_ips
     },
     var.environment == "local" ? { LOCAL_SMOKE_USER_PASSWORD = local.generated_secrets.local_smoke_user_password } : {}
   )

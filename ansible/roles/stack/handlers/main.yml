@@ -2,7 +2,15 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+- name: Check if home-stack is provisioned
+  ansible.builtin.stat:
+    path: /etc/home-stack.env
+  register: stack_runtime_env_stat
+  listen: Apply home-stack
+
 - name: Apply home-stack
   ansible.builtin.systemd:
     name: home-stack
     state: reloaded
+  when: stack_runtime_env_stat.stat.exists
+  listen: Apply home-stack

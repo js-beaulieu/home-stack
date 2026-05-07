@@ -81,7 +81,7 @@ def main() -> int:
         get_token(base_url, args.permanent_username, args.permanent_password)
         info.write(f"Permanent admin '{args.permanent_username}' already exists — nothing to do.\n")
     except urllib.error.HTTPError as exc:
-        if exc.code != 401:
+        if exc.code not in (400, 401):
             sys.stderr.write(f"Unexpected error checking permanent admin: {exc}\n")
             return exc.code
 

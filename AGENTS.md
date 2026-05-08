@@ -152,6 +152,7 @@ home-stack/
 - [ ] `pg_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) `docker exec -it home-stack-postgres-1 psql -U home_stack_admin -c "ALTER ROLE home_stack_admin PASSWORD 'newpassword'"` on the VPS, (2) update this value, (3) `task rotate`.
 - [ ] `keycloak_admin_password` — stable tofu entry-point credential. Set it once. To rotate later: (1) change it via the Keycloak admin UI at `auth.<domain>/admin`, (2) update this value, (3) `task rotate`.
 - [ ] `keycloak_admin_allowed_ips` — CIDR allowlist for `/admin`, must include prefix length, e.g. `203.0.113.10/32`
+- [ ] `watchtower_http_api_token` — Bearer token for the Watchtower HTTP API. Set it once, then add the same value as a GitHub secret named `WATCHTOWER_HTTP_API_TOKEN`. To rotate: update this value, run `task rotate`, update the GitHub secret.
 - [ ] `google_identity_provider.enabled` / `client_id` / `client_secret` / `hosted_domain` — set `enabled: false` to skip
 
 **`ansible/group_vars/all.yml`** — edit and commit
@@ -163,6 +164,7 @@ home-stack/
 - [ ] `VPS_HOST` — VPS IP address
 - [ ] `B2_ACCESS_KEY_ID` — Backblaze application key ID (create a private bucket + app key via B2 console)
 - [ ] `B2_SECRET_ACCESS_KEY` — Backblaze application key secret
+- [ ] `WATCHTOWER_HTTP_API_TOKEN` — same value as `watchtower_http_api_token` in `prod.sops.yaml`
 
 **VPS** — via hosting panel
 - [ ] `debian` user with passwordless sudo

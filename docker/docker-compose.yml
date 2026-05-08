@@ -193,9 +193,8 @@ services:
   flipt:
     image: docker.flipt.io/flipt/flipt:v2
     restart: unless-stopped
-    command: ["flipt", "--config", "/etc/flipt/config.yml"]
     volumes:
-      - ../flipt/config.yml:/etc/flipt/config.yml:ro
+      - ../flipt/config.yml:/etc/flipt/config/default.yml:ro
       - ${HOME}/flipt-data:/var/opt/flipt
     networks:
       - public

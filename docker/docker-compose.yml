@@ -190,6 +190,23 @@ services:
       - "traefik.http.routers.private-app.tls.certresolver=letsencrypt"
       - "traefik.http.services.private-app.loadbalancer.server.port=4180"
 
+  flipt:
+    image: docker.flipt.io/flipt/flipt:v2
+    restart: unless-stopped
+    command: --config /etc/flipt/config.yml
+    volumes:
+      - ../flipt/config.yml:/etc/flipt/config.yml:ro
+      - ${HOME}/flipt-data:/var/opt/flipt
+    networks:
+      - public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.flipt.rule=Host(`flipt.${DOMAIN}`)"
+      - "traefik.http.routers.flipt.entrypoints=websecure"
+      - "traefik.http.routers.flipt.tls.certresolver=letsencrypt"
+      - "traefik.http.services.flipt.loadbalancer.server.port=8080"
+
   watchtower:
     image: ghcr.io/nicholas-fedor/watchtower:latest
     restart: unless-stopped

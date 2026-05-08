@@ -1,0 +1,9 @@
+meta:
+  telemetry_enabled: false
+  check_for_updates: false
+
+storage:
+  default:
+    backend:
+      type: local
+      path: /var/opt/flipt

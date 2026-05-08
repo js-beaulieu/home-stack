@@ -24,6 +24,7 @@ locals {
       POSTGRES_PORT              = "5432"
       TASKS_PORT                 = "8080"
       TRAEFIK_TRUSTED_PROXY_IPS  = local.traefik_trusted_proxy_ips
+      WATCHTOWER_HTTP_API_TOKEN  = local.generated_secrets.watchtower_http_api_token
     },
     var.environment == "local" ? { LOCAL_SMOKE_USER_PASSWORD = local.generated_secrets.local_smoke_user_password } : {}
   )

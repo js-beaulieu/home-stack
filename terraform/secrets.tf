@@ -51,6 +51,7 @@ locals {
     pg_keycloak_password       = random_password.pg_keycloak_password.result
     oauth2_proxy_client_secret = random_password.oauth2_proxy_client_secret.result
     oauth2_proxy_cookie_secret = base64encode(random_password.oauth2_proxy_cookie_secret.result)
+    watchtower_http_api_token  = random_password.watchtower_http_api_token.result
     local_smoke_user_password = (
       var.environment == "local"
       ? coalesce(trimspace(local.local_smoke_user.password), random_password.local_smoke_user_password[0].result)
@@ -81,5 +82,10 @@ resource "random_password" "oauth2_proxy_cookie_secret" {
 resource "random_password" "local_smoke_user_password" {
   count   = var.environment == "local" ? 1 : 0
   length  = 24
+  special = false
+}
+
+resource "random_password" "watchtower_http_api_token" {
+  length  = 32
   special = false
 }

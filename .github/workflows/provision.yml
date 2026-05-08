@@ -124,3 +124,21 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: "false"
           VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Open Watchtower tunnel
+        run: |
+          ssh -fN \
+            -i ~/.ssh/home-stack-ci \
+            -o StrictHostKeyChecking=no \
+            -o ExitOnForwardFailure=yes \
+            -L 18083:127.0.0.1:8083 \
+            debian@${VPS_HOST}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+
+      - name: Trigger Watchtower update
+        run: |
+          curl -sf -X POST http://localhost:18083/v1/update \
+            -H "Authorization: Bearer ${WATCHTOWER_HTTP_API_TOKEN}"
+        env:
+          WATCHTOWER_HTTP_API_TOKEN: ${{ secrets.WATCHTOWER_HTTP_API_TOKEN }}

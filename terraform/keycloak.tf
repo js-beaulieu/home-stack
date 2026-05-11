@@ -1,5 +1,5 @@
 locals {
-  keycloak_admin_username = "admin"
+  keycloak_admin_username = "hs-admin"
 
   dcr_trusted_hosts = ["localhost", "claude.ai", "claude.com"]
   dcr_web_origins   = ["https://claude.ai", "https://claude.com"]

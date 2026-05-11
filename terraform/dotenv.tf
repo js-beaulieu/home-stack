@@ -2,6 +2,7 @@ locals {
   runtime_env = merge(
     {
       ACME_EMAIL                 = local.secrets.acme_email
+      CONFIGCAT_SDKS             = try(local.secrets.configcat_sdks, "{}")
       DOMAIN                     = local.secrets.domain
       KEYCLOAK_ADMIN_ALLOWED_IPS = local.secrets.keycloak_admin_allowed_ips
       KEYCLOAK_ADMIN_PASSWORD    = local.secrets.keycloak_admin_password
@@ -22,6 +23,7 @@ locals {
       PG_KEYCLOAK_PASSWORD       = local.generated_secrets.pg_keycloak_password
       PG_KEYCLOAK_USERNAME       = local.pg_keycloak_username
       POSTGRES_PORT              = "5432"
+      REDIS_PASSWORD             = local.secrets.redis_password
       TASKS_PORT                 = "8080"
       TRAEFIK_TRUSTED_PROXY_IPS  = local.traefik_trusted_proxy_ips
     },

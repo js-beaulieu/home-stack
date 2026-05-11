@@ -45,6 +45,14 @@ services:
       - "traefik.http.routers.flipt.entrypoints=web"
       - "traefik.http.services.flipt.loadbalancer.server.port=8080"
 
+  configcat-proxy:
+    labels: !override
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.configcat.rule=Host(`configcat.localhost`)"
+      - "traefik.http.routers.configcat.entrypoints=web"
+      - "traefik.http.services.configcat.loadbalancer.server.port=8050"
+
   oauth2-proxy:
     # auth.localhost is served by Traefik on the Docker host; route there via host-gateway
     extra_hosts:

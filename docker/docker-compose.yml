@@ -135,16 +135,28 @@ services:
       - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
 
   redis:
-    image: redis:7.4.2-alpine
+    image: redis:8.6.2-alpine
     restart: unless-stopped
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
     command:
       - redis-server
       - --save
       - ""
       - --appendonly
       - "no"
+      - --requirepass
+      - ${REDIS_PASSWORD}
     networks:
       - internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli --pass "$$REDIS_PASSWORD" ping | grep -q PONG
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.8.1
@@ -167,7 +179,7 @@ services:
       - --cookie-secure=${OAUTH2_PROXY_COOKIE_SECURE}
       - --redirect-url=${OAUTH2_PROXY_REDIRECT_URL}
       - --session-store-type=redis
-      - --redis-connection-url=redis://redis:6379
+      - --redis-connection-url=redis://:${REDIS_PASSWORD}@redis:6379/0
       - --pass-access-token=false
       - --pass-authorization-header=false
     depends_on:
@@ -205,6 +217,40 @@ services:
       - "traefik.http.routers.flipt.entrypoints=websecure"
       - "traefik.http.routers.flipt.tls.certresolver=letsencrypt"
       - "traefik.http.services.flipt.loadbalancer.server.port=8080"
+
+  configcat-proxy:
+    image: configcat/proxy:v3
+    restart: unless-stopped
+    env_file:
+      - ${HOME_STACK_ENV_FILE}
+    environment:
+      CONFIGCAT_SDKS: ${CONFIGCAT_SDKS}
+      CONFIGCAT_CACHE_REDIS_ENABLED: "true"
+      CONFIGCAT_CACHE_REDIS_ADDRESSES: '["redis:6379"]'
+      CONFIGCAT_CACHE_REDIS_DB: "1"
+      CONFIGCAT_CACHE_REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks:
+      - public
+      - internal
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- http://127.0.0.1:8051/status | grep -q '"status":"OK"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=home-stack_public"
+      - "traefik.http.routers.configcat.rule=Host(`configcat.${DOMAIN}`)"
+      - "traefik.http.routers.configcat.entrypoints=websecure"
+      - "traefik.http.routers.configcat.tls.certresolver=letsencrypt"
+      - "traefik.http.services.configcat.loadbalancer.server.port=8050"
 
   watchtower:
     image: ghcr.io/nicholas-fedor/watchtower:latest

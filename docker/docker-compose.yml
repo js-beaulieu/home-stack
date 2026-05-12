@@ -236,14 +236,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test:
-        - CMD-SHELL
-        - >-
-          wget -qO- http://127.0.0.1:8051/status | grep -q '"status":"OK"'
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+      disable: true
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=home-stack_public"
@@ -251,6 +244,9 @@ services:
       - "traefik.http.routers.configcat.entrypoints=websecure"
       - "traefik.http.routers.configcat.tls.certresolver=letsencrypt"
       - "traefik.http.services.configcat.loadbalancer.server.port=8050"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.path=/status"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.port=8051"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.interval=10s"
 
   watchtower:
     image: ghcr.io/nicholas-fedor/watchtower:latest

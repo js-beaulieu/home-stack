@@ -52,6 +52,9 @@ services:
       - "traefik.http.routers.configcat.rule=Host(`configcat.localhost`)"
       - "traefik.http.routers.configcat.entrypoints=web"
       - "traefik.http.services.configcat.loadbalancer.server.port=8050"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.path=/status"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.port=8051"
+      - "traefik.http.services.configcat.loadbalancer.healthcheck.interval=10s"
 
   oauth2-proxy:
     # auth.localhost is served by Traefik on the Docker host; route there via host-gateway
